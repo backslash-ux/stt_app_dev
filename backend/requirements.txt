@@ -3,3 +3,4 @@ uvicorn
 pydantic
 yt-dlp
 openai
+pydantic-settings
