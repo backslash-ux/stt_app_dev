@@ -1,0 +1,870 @@
+# backend/routers/auth.py
+
+from fastapi import APIRouter, HTTPException, Depends, status
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
+from backend.database import SessionLocal
+from backend.crud.user_crud import create_user, get_user_by_email
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
+from backend.utils.dependencies import get_current_user
+from backend.models.user import User
+
+router = APIRouter()
+
+SECRET_KEY = "SUPER_SECRET_KEY"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
+    existing = get_user_by_email(db, req.email)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    user = create_user(db, req.email, req.password)
+    return {"message": "User registered successfully", "user_id": user.id}
+
+
+@router.post("/login", status_code=status.HTTP_200_OK)
+def login_user(req: LoginRequest, db: Session = Depends(get_db)):
+    try:
+        print(f"Received login request: {req}")
+        user = get_user_by_email(db, req.email)
+
+        if not user or not pwd_context.verify(req.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+        access_token = create_access_token({"sub": str(user.id)})
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except Exception as e:
+        print(f"Login Error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+
+
+@router.get("/me", response_model=dict, status_code=status.HTTP_200_OK)
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """Returns the logged-in user's details"""
+    return {"id": current_user.id, "email": current_user.email}
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+# backend/routers/youtube.py
+
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+import uuid
+import yt_dlp  # <-- For metadata extraction
+from backend.utils.youtube_utils import download_youtube_audio
+from backend.utils.job_status import create_job, update_job, get_job
+from backend.utils.transcribe_utils import transcribe_audio_with_whisper
+from backend.utils.dependencies import get_current_user
+from backend.crud.history_crud import create_history_record
+from backend.database import SessionLocal
+from backend.models.user import User
+
+router = APIRouter()
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def process_youtube_transcription(youtube_url: str, user_id: int, db: Session, job_id: str):
+    update_job(job_id, "processing")
+    try:
+        # Extract metadata (title) again in the background just to be safe:
+        with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
+            info = ydl.extract_info(youtube_url, download=False)
+            youtube_title = info.get("title") or youtube_url
+
+        file_path = download_youtube_audio(youtube_url)
+        transcription_text = transcribe_audio_with_whisper(file_path)
+
+        create_history_record(
+            db,
+            user_id,
+            "YouTube",
+            youtube_url,
+            transcription_text,
+            title=youtube_title
+        )
+
+        update_job(job_id, "completed", transcript=transcription_text)
+        print(f"✅ YouTube transcription completed for '{youtube_title}'")
+
+    except Exception as e:
+        update_job(job_id, "failed")
+        print(f"❌ Error during YouTube transcription: {e}")
+
+
+class YouTubeRequest(BaseModel):
+    youtube_url: str
+
+
+@router.post("/process-youtube/")
+async def process_youtube(
+    background_tasks: BackgroundTasks,
+    request: YouTubeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Try to extract the YouTube title right away, so we can return it
+    try:
+        with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
+            info = ydl.extract_info(request.youtube_url, download=False)
+            youtube_title = info.get("title") or request.youtube_url
+    except Exception:
+        # If anything goes wrong, just fall back to the raw URL
+        youtube_title = request.youtube_url
+
+    job_id = str(uuid.uuid4())
+    create_job(job_id)
+
+    # Queue the actual transcription in the background
+    background_tasks.add_task(
+        process_youtube_transcription,
+        request.youtube_url,
+        current_user.id,
+        db,
+        job_id
+    )
+
+    # Return the job_id + the extracted title so the frontend can display it
+    return {
+        "message": "YouTube transcription started!",
+        "job_id": job_id,
+        "youtube_title": youtube_title,
+    }
+
+
+@router.get("/jobs/{job_id}/status")
+async def get_youtube_job_status(job_id: str):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job ID not found")
+    return job
+# backend/routers/content_history.py
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+from backend.database import SessionLocal
+from backend.models.user import User
+from backend.models.content_generation import ContentGeneration
+from backend.models.transcription import TranscriptionHistory
+from backend.utils.dependencies import get_current_user
+
+router = APIRouter()
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.get("/", response_model=List[dict])
+def get_content_generation_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retrieve generated content history for the logged-in user, sorted latest to oldest."""
+    content_records = (
+        db.query(ContentGeneration)
+        .filter(ContentGeneration.user_id == current_user.id)
+        .order_by(ContentGeneration.created_at.desc())  # Sort by latest
+        .all()
+    )
+
+    # Instead of raising an error if no records are found, return an empty list
+    if not content_records:
+        return []
+
+    return [
+        {
+            "id": record.id,
+            "title": record.title,
+            "transcription_history_id": record.transcription_history_id,
+            "transcription_title": db.query(TranscriptionHistory.title)
+            .filter(TranscriptionHistory.id == record.transcription_history_id)
+            .scalar(),
+            "generated_content": record.generated_content,
+            "created_at": record.created_at,
+            "config": record.config,
+        }
+        for record in content_records
+    ]
+# backend/routers/upload.py
+
+from backend.config import settings
+from backend.utils.job_status import create_job, update_job, get_job
+from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Depends
+from sqlalchemy.orm import Session
+import os
+import shutil
+import uuid
+from backend.utils.transcribe_utils import transcribe_audio_with_whisper
+from backend.utils.dependencies import get_current_user
+from backend.utils.youtube_utils import sanitize_filename
+from backend.crud.history_crud import create_history_record
+from backend.database import SessionLocal
+from backend.models.user import User
+
+router = APIRouter()
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def process_transcription(file_path: str, user_id: int, db_session: Session, job_id: str):
+    update_job(job_id, "processing")
+    try:
+        transcription_text = transcribe_audio_with_whisper(file_path)
+
+        file_title = os.path.basename(file_path)
+        public_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/uploads/{file_title}"
+        create_history_record(db_session, user_id, "Upload",
+                              public_url, transcription_text, title=file_title)
+
+        update_job(job_id, "completed", transcription_text)
+
+        print(f"✅ Transcription completed for {file_path}")
+
+    except Exception as e:
+        update_job(job_id, "failed")
+        print(f"❌ Error during transcription: {e}")
+
+
+@router.post("/upload-audio/")
+async def upload_audio(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        allowed_extensions = {".mp3", ".mp4", ".wav", ".webm"}
+        ext = os.path.splitext(file.filename)[1]
+        if ext.lower() not in allowed_extensions:
+            raise HTTPException(
+                status_code=400, detail="Unsupported file type")
+
+        base_name = os.path.splitext(file.filename)[0]
+        sanitized_base = sanitize_filename(base_name)
+        new_filename = f"{sanitized_base}{ext}"
+        file_path = os.path.join(UPLOAD_DIR, new_filename)
+
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        job_id = str(uuid.uuid4())
+        create_job(job_id)
+        background_tasks.add_task(
+            process_transcription, file_path, current_user.id, db, job_id)
+
+        return {
+            "message": "File uploaded successfully, transcription is processing in the background!",
+            "job_id": job_id
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/jobs/{job_id}/status")
+async def get_job_status(job_id: str):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job ID not found")
+    return job
+# backend/routers/generate.py
+from openai import OpenAI
+from backend.config import settings  # Import settings before usage
+from backend.utils.job_status import create_job, update_job
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from backend.database import SessionLocal  # <-- Ensure correct import order
+from backend.models.user import User
+from backend.models.content_generation import ContentGeneration
+from backend.models.transcription import TranscriptionHistory
+from backend.utils.dependencies import get_current_user  # Import the new model
+
+# Initialize OpenAI client with API key from settings
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+router = APIRouter()
+
+
+class ArticleRequest(BaseModel):
+    job_id: str
+    transcription_id: int
+    transcription: str
+    gaya_bahasa: str
+    kepadatan_informasi: str
+    sentimen: str
+    gaya_penyampaian: str
+    format_output: str
+    gaya_kutipan: str
+    bahasa: str
+    penyuntingan: str
+    catatan_tambahan: str = ""
+    config: dict = {}
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.post("/")
+async def generate_article(
+    request: ArticleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        # Register the job using the provided job_id
+        create_job(request.job_id)
+        update_job(request.job_id, "processing")
+
+        prompt = f"""
+        Anda adalah seorang jurnalis yang ahli dalam membuat artikel/berita/blog berdasarkan transkripsi. Berikut adalah detailnya:
+        Transkripsi: {request.transcription}
+
+        Gaya bahasa: {request.gaya_bahasa}
+        Kepadatan informasi: {request.kepadatan_informasi}
+        Sentimen: {request.sentimen}
+        Gaya penyampaian: {request.gaya_penyampaian}
+        Format output: {request.format_output}
+        Gaya kutipan: {request.gaya_kutipan}
+        Bahasa: {request.bahasa}
+        Penyuntingan: {request.penyuntingan}
+
+        Periksalah fakta-fakta, terutama nama yang salah harap dikoreksi. Tolong hasilkan artikel dalam format HTML yang kaya, dengan elemen-elemen seperti <h1>, <p>, <strong>, <em>, dan elemen HTML lainnya sesuai kebutuhan jika ada. Tidak diperlukan tag seperti <html>, <head>, <body> atau <style>.
+        """
+
+        if request.catatan_tambahan.strip():
+            prompt += f"\nCatatan tambahan: {request.catatan_tambahan}\n"
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        article_content = response.choices[0].message.content.strip()
+
+        transcription = db.query(TranscriptionHistory).filter(
+            TranscriptionHistory.id == request.transcription_id
+        ).first()
+        content_generation_record = ContentGeneration(
+            user_id=current_user.id,
+            transcription_history_id=request.transcription_id,
+            generated_content=article_content,
+            title=transcription.title if transcription else None,
+            config=request.config  # Store the user configuration
+        )
+        db.add(content_generation_record)
+        db.commit()
+        db.refresh(content_generation_record)
+
+        # Update job status to completed with the generated article content
+        update_job(request.job_id, "completed", article_content)
+
+        return {"article": article_content, "content_id": content_generation_record.id}
+
+    except Exception as e:
+        update_job(request.job_id, "failed")
+        raise HTTPException(status_code=500, detail=str(e))
+# backend/routers/history.py
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+from backend.database import SessionLocal
+from backend.models.transcription import TranscriptionHistory
+from backend.models.content_generation import ContentGeneration
+from backend.models.user import User
+from backend.utils.dependencies import get_current_user
+
+router = APIRouter()
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.get("/", response_model=List[dict])
+def get_my_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retrieve transcription history for the logged-in user, sorted latest to oldest."""
+    history_records = (
+        db.query(TranscriptionHistory)
+        .filter(TranscriptionHistory.user_id == current_user.id)
+        .order_by(TranscriptionHistory.created_at.desc())  # Sort by latest
+        .all()
+    )
+
+    # Return an empty list if no history is found instead of raising an error
+    if not history_records:
+        return []
+
+    return [
+        {
+            "id": record.id,
+            "title": record.title if record.title else "Untitled Transcription",
+            "source": record.source,
+            "video_url": record.video_url,
+            "transcript": record.transcript,
+            "created_at": record.created_at
+        }
+        for record in history_records
+    ]
+
+
+@router.get("/content", response_model=List[dict])
+def get_content_generation_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retrieve content generation history for the logged-in user."""
+    content_records = db.query(ContentGeneration).filter(
+        ContentGeneration.user_id == current_user.id
+    ).all()
+
+    # Return an empty list if no content records are found instead of raising an error
+    if not content_records:
+        return []
+
+    return [
+        {
+            "id": record.id,
+            "title": record.title,
+            "transcription_history_id": record.transcription_history_id,
+            "generated_content": record.generated_content,
+            "created_at": record.created_at,
+            "config": record.config  # Include the user configuration
+        }
+        for record in content_records
+    ]
+# backend/config.py
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Adjusts to your project root
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+class Settings(BaseSettings):
+    OPENAI_API_KEY: str
+    APP_HOST: str
+    APP_PORT: int
+    DATABASE_URL: str
+
+    model_config = SettingsConfigDict(
+        env_file=str(BASE_DIR / ".env"),
+        env_file_encoding="utf-8"
+    )
+
+
+settings = Settings()
+
+print("APP_HOST from settings:", settings.APP_HOST)
+print("APP_PORT from settings:", settings.APP_PORT)
+# backend/database.py
+
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from backend.config import settings
+
+DATABASE_URL = settings.DATABASE_URL
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# ✅ Ensure tables are created properly
+
+
+def init_db():
+    from backend.models import user, transcription, content_generation  # Correct import
+    Base.metadata.create_all(bind=engine)
+# backend/utils/job_status.py
+job_status = {}  # Stores job_id -> status
+
+
+def create_job(job_id: str):
+    """Initialize a new job with 'pending' status."""
+    job_status[job_id] = {"status": "pending", "transcript": None}
+
+
+def update_job(job_id: str, status: str, transcript: str = None):
+    """Update job status globally."""
+    if job_id in job_status:
+        job_status[job_id]["status"] = status
+        if transcript:
+            job_status[job_id]["transcript"] = transcript
+
+
+def get_job(job_id: str):
+    """Retrieve job status."""
+    return job_status.get(job_id)
+# backend/utils/transcribe_utils.py
+
+import os
+import requests
+from backend.config import settings
+
+
+def transcribe_audio_with_whisper(audio_file_path: str) -> str:
+    api_key = settings.OPENAI_API_KEY
+    url = "https://api.openai.com/v1/audio/transcriptions"
+    headers = {
+        "Authorization": f"Bearer {api_key}"
+    }
+    data = {
+        "model": "whisper-1"
+    }
+
+    with open(audio_file_path, "rb") as f:
+        files = {
+            "file": (audio_file_path, f, "audio/mpeg")
+        }
+        response = requests.post(url, headers=headers, data=data, files=files)
+
+    if response.status_code != 200:
+        raise ValueError(
+            f"Whisper API error {response.status_code}: {response.text}"
+        )
+
+    result = response.json()
+    return result.get("text", "")
+# backend/utils/youtube_utils.py
+
+import os
+import re
+import yt_dlp
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Replaces all non-alphanumeric, non-underscore, non-dash characters 
+    with underscores and strips trailing underscores.
+    """
+    return re.sub(r'[^a-zA-Z0-9_-]', '_', filename).strip('_')
+
+
+def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> str:
+    """
+    Downloads the YouTube audio as an MP3 using yt-dlp, ensuring the
+    final file has a proper `.mp3` extension (rather than `_mp3`).
+    Returns the full path to the downloaded .mp3 file.
+    """
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': f"{output_path}/%(title)s.%(ext)s",
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+    }
+
+    os.makedirs(output_path, exist_ok=True)
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(youtube_url, download=True)
+        # e.g., "downloads/Menperin Kasih Bocoran Soal Pabrik Mobil Nasional.webm"
+        raw_filename = ydl.prepare_filename(info)
+
+    # Split the raw filename into (base, extension)
+    base, ext = os.path.splitext(raw_filename)
+
+    # If the postprocessor left .webm or .m4a, force ".mp3"
+    if ext.lower() in (".webm", ".m4a"):
+        ext = ".mp3"
+
+    # Extract just the base name (no directories), then sanitize that portion
+    base_name_only = os.path.basename(base)
+    sanitized_base = sanitize_filename(base_name_only)
+
+    # Rebuild the final filename with sanitized base + ".mp3"
+    final_filename = f"{sanitized_base}{ext}"
+    final_path = os.path.join(output_path, final_filename)
+
+    # Attempt to rename the file from its raw name to the new sanitized name
+    if os.path.exists(raw_filename):
+        os.rename(raw_filename, final_path)
+    else:
+        # The file may have been directly converted to .mp3
+        mp3_version = f"{base}.mp3"
+        if os.path.exists(mp3_version):
+            os.rename(mp3_version, final_path)
+        else:
+            raise FileNotFoundError(
+                f"Downloaded file not found: {raw_filename} or {mp3_version}"
+            )
+
+    return final_path
+# backend/utils/dependencies.py
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from backend.database import SessionLocal
+from backend.models.user import User
+
+SECRET_KEY = "SUPER_SECRET_KEY"
+ALGORITHM = "HS256"
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: SessionLocal = Depends(get_db)) -> User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id_str: str = payload.get("sub")
+        if user_id_str is None:
+            raise credentials_exception
+
+        # Convert user_id to int (assuming User.id is an Integer)
+        user_id = int(user_id_str)
+
+    except (JWTError, ValueError):
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise credentials_exception
+
+    return user
+# backend/models/user.py
+
+from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
+from backend.database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+
+    transcriptions = relationship(
+        "TranscriptionHistory", back_populates="user")
+    content_generations = relationship(
+        "ContentGeneration", back_populates="user")
+# backend/models/transcription.py
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, func
+from sqlalchemy.orm import relationship
+from backend.database import Base
+
+
+class TranscriptionHistory(Base):
+    __tablename__ = 'transcription_history'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    source = Column(String, nullable=False, default="YouTube")  # Default added
+    video_url = Column(Text)
+    title = Column(String, nullable=True)  # ✅ Added title field
+    transcript = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="transcriptions")
+    content_generations = relationship(
+        "ContentGeneration", back_populates="transcription_history")
+# backend/models/content_generation.py
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, func
+from sqlalchemy.orm import relationship
+# or from sqlalchemy import JSON if not using PG-specific
+from sqlalchemy.dialects.postgresql import JSON
+from backend.database import Base
+
+
+class ContentGeneration(Base):
+    __tablename__ = 'content_generation'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    transcription_history_id = Column(Integer, ForeignKey(
+        'transcription_history.id'), nullable=False)
+    title = Column(String, nullable=True)
+    generated_content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+
+    # New column to store user config
+    config = Column(JSON, nullable=True)
+
+    user = relationship("User", back_populates="content_generations")
+    transcription_history = relationship(
+        "TranscriptionHistory", back_populates="content_generations")
+# backend/crud/user_crud.py
+
+from sqlalchemy.orm import Session
+from passlib.context import CryptContext
+from backend.models.user import User
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def create_user(db: Session, email: str, password: str) -> User:
+    password_hash = pwd_context.hash(password)  # ✅ Correct field name
+    # ✅ Match database schema
+    new_user = User(email=email, password_hash=password_hash)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+
+def get_user_by_email(db: Session, email: str) -> User:
+    return db.query(User).filter(User.email == email).first()
+# backend/crud/history_crud.py
+
+from sqlalchemy.orm import Session
+from backend.routers.history import TranscriptionHistory
+
+
+def create_history_record(db: Session, user_id: int, source: str, video_url: str, transcript: str, title: str = None):
+    history = TranscriptionHistory(
+        user_id=user_id,
+        source=source,
+        video_url=video_url,
+        transcript=transcript,
+        title=title  # set title here
+    )
+    db.add(history)
+    db.commit()
+    db.refresh(history)
+    return history
+
+
+def get_user_history(db: Session, user_id: int):
+    return db.query(TranscriptionHistory).filter(TranscriptionHistory.user_id == user_id).all()
+# backend/main.py
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+from backend.config import settings
+from backend.routers import youtube, generate, auth, history, upload, content_history
+from backend.database import init_db
+from backend.utils.job_status import get_job
+
+print("DEBUG: DATABASE_URL is:", settings.DATABASE_URL)
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json"
+    )
+
+    @app.on_event("startup")
+    def on_startup():
+        init_db()
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+    app.include_router(youtube.router, prefix="/youtube", tags=["YouTube"])
+    app.include_router(generate.router, prefix="/generate", tags=["Generate"])
+    app.include_router(history.router, prefix="/history", tags=["History"])
+    app.include_router(upload.router, prefix="/upload", tags=["Upload"])
+    app.include_router(content_history.router,
+                       prefix="/content-history", tags=["Content History"])
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+    @app.get("/jobs/{job_id}/status")
+    async def get_global_job_status(job_id: str):
+        job = get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job ID not found")
+        return job
+
+    return app
+
+
+app = create_app()
+
+if __name__ == "__main__":
+    uvicorn.run("backend.main:app", host=settings.APP_HOST,
+                port=int(settings.APP_PORT))
