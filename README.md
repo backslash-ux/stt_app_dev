@@ -1,5 +1,7 @@
 # stt_app_dev
+
 =======
+
 # Deployment Guide for Audio Transcriber & Content Generator App
 
 This document provides complete instructions for deploying the Audio Transcriber & Content Generator App (both backend and frontend) on a remote server. Follow the steps below to set up your environment, configure your application, and launch the services.
