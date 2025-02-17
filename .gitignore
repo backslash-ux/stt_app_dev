@@ -1,5 +1,10 @@
-# txt 
-.txt
+# .gitignore
+
+# Node
+node_modules/
+
+# Next.js build output
+.next/
 
 # Python
 __pycache__/
@@ -11,14 +16,11 @@ __pycache__/
 venv/
 .venv/
 
-# Node
-node_modules/
-
 # Alembic cache and versions
 alembic/__pycache__/
 alembic/versions/__pycache__/
 
-# OS-specific files
+# OS-specific
 .DS_Store
 Thumbs.db
 
@@ -54,3 +56,7 @@ Thumbs.db
 *.3gpp5
 *.3gpp6
 *.3gpp7
+
+# Folders to exclude
+/uploads/
+/downloads/

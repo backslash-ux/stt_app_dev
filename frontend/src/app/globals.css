@@ -1,0 +1,57 @@
+/* /src/app/globals.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  color: #0a0a0a;
+}
+
+p {
+  color: #171717;
+}
+
+strong {
+  color: #0a0a0a;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.generated-content h1,
+.generated-content p,
+.generated-content ul {
+  margin-bottom: revert-layer;
+}
+
+.generated-content h1 {
+  font-size: larger;
+  font-weight: bolder;
+}
