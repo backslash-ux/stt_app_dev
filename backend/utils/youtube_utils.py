@@ -22,7 +22,7 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
     If the environment variable YOUTUBE_COOKIES is set to a file path,
     that cookies file will be used for authentication.
     """
-    # Base yt_dlp options
+    # Base yt_dlp options with a realistic user agent
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': f"{output_path}/%(title)s.%(ext)s",
@@ -31,6 +31,7 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
     }
 
     # If a cookies file is provided via the environment variable, add it to options
@@ -42,7 +43,7 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(youtube_url, download=True)
-        # e.g., "downloads/Menperin_Kasih Bocoran Soal Pabrik Mobil Nasional.webm"
+        # e.g., "downloads/Menperin Kasih Bocoran Soal Pabrik Mobil Nasional.webm"
         raw_filename = ydl.prepare_filename(info)
 
     # Split the raw filename into (base, extension)
