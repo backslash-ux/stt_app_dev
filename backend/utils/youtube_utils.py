@@ -1,5 +1,3 @@
-# backend/utils/youtube_utils.py
-
 import os
 import re
 import yt_dlp
@@ -18,7 +16,11 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
     Downloads the YouTube audio as an MP3 using yt-dlp, ensuring the
     final file has a proper `.mp3` extension (rather than `_mp3`).
     Returns the full path to the downloaded .mp3 file.
+
+    If the environment variable YOUTUBE_COOKIES is set to a file path,
+    that cookies file will be used for authentication.
     """
+    # Base yt_dlp options
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': f"{output_path}/%(title)s.%(ext)s",
@@ -28,6 +30,11 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
             'preferredquality': '192',
         }],
     }
+
+    # If a cookies file is provided via the environment variable, add it to options
+    youtube_cookies = os.environ.get("YOUTUBE_COOKIES")
+    if youtube_cookies and os.path.exists(youtube_cookies):
+        ydl_opts["cookiefile"] = youtube_cookies
 
     os.makedirs(output_path, exist_ok=True)
 

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-    title: "Audio Transcriber & Content Generator App",
+    title: "SIRAKTA - Sistem Informasi Rekaman Audio dan Kreativitas Transkripsi",
     description: "Transcribe and generate content from audio files and YouTube video powered by Tim Digital Garuda TV",
 };
 
