@@ -1,5 +1,3 @@
-# backend/utils/youtube_utils.py
-
 import os
 import re
 import yt_dlp
@@ -15,12 +13,12 @@ def sanitize_filename(filename: str) -> str:
 
 def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> str:
     """
-    Downloads the YouTube audio as an MP3 using yt-dlp, ensuring the
-    final file has a proper `.mp3` extension (rather than `_mp3`).
-    Returns the full path to the downloaded .mp3 file.
+    Downloads the YouTube audio as an MP3 using yt-dlp, ensuring the final file
+    has a proper `.mp3` extension (rather than `_mp3`). Returns the full path to the
+    downloaded .mp3 file.
 
-    If the environment variable YOUTUBE_COOKIES is set to a file path,
-    that cookies file will be used for authentication.
+    If the environment variable YOUTUBE_COOKIES is set to a valid file path, that
+    cookies file will be used for authentication.
     """
     # Base yt_dlp options with a realistic user agent
     ydl_opts = {
@@ -31,7 +29,9 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                      'AppleWebKit/537.36 (KHTML, like Gecko) '
+                      'Chrome/112.0.0.0 Safari/537.36',
     }
 
     # If a cookies file is provided via the environment variable, add it to options
@@ -43,7 +43,6 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(youtube_url, download=True)
-        # e.g., "downloads/Menperin Kasih Bocoran Soal Pabrik Mobil Nasional.webm"
         raw_filename = ydl.prepare_filename(info)
 
     # Split the raw filename into (base, extension)
@@ -53,7 +52,7 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
     if ext.lower() in (".webm", ".m4a"):
         ext = ".mp3"
 
-    # Extract just the base name (no directories), then sanitize that portion
+    # Extract just the base name (no directories), then sanitize it
     base_name_only = os.path.basename(base)
     sanitized_base = sanitize_filename(base_name_only)
 
