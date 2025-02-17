@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # stt_app_dev
 =======
 # Deployment Guide for Audio Transcriber & Content Generator App
