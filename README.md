@@ -233,4 +233,3 @@ This ensures that when a user logs out or their session ends, previous tasks do 
 This guide provides detailed steps to deploy the Audio Transcriber & Content Generator App on a remote server. By following these instructions, you can set up your environment, run both the backend and frontend applications, and ensure a secure and scalable deployment.
 
 For further assistance, refer to your application logs and adjust configurations as needed.
->>>>>>> 5df0ea7 (Initial commit with .gitignore setup)
