@@ -1,4 +1,4 @@
-# stt_app_dev
+# Audio Transcriber & Content Generator App
 
 =======
 
