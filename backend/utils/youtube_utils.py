@@ -1,3 +1,4 @@
+# backend/utils/youtube_utils.py
 import os
 import re
 import yt_dlp
@@ -30,13 +31,9 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/112.0.0.0 Safari/537.36',
     }
 
-    # If a cookies file is provided via the environment variable, add it to options
-    youtube_cookies = os.environ.get("YOUTUBE_COOKIES")
+    # Use cookie path from settings
     youtube_cookies = settings.YOUTUBE_COOKIES
     if youtube_cookies and os.path.exists(youtube_cookies):
         ydl_opts["cookies"] = youtube_cookies
