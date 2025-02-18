@@ -1,6 +1,7 @@
 import os
 import re
 import yt_dlp
+from backend.config import settings
 
 
 def sanitize_filename(filename: str) -> str:
@@ -36,8 +37,11 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
 
     # If a cookies file is provided via the environment variable, add it to options
     youtube_cookies = os.environ.get("YOUTUBE_COOKIES")
+    youtube_cookies = settings.YOUTUBE_COOKIES
     if youtube_cookies and os.path.exists(youtube_cookies):
         ydl_opts["cookiefile"] = youtube_cookies
+    else:
+        print("Cookie file not found or invalid.")
 
     os.makedirs(output_path, exist_ok=True)
 
