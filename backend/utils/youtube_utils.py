@@ -30,7 +30,7 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-        'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
         'AppleWebKit/537.36 (KHTML, like Gecko) '
         'Chrome/112.0.0.0 Safari/537.36',
     }
