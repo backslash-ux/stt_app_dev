@@ -39,7 +39,7 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
     youtube_cookies = os.environ.get("YOUTUBE_COOKIES")
     youtube_cookies = settings.YOUTUBE_COOKIES
     if youtube_cookies and os.path.exists(youtube_cookies):
-        ydl_opts["cookiefile"] = youtube_cookies
+        ydl_opts["cookies"] = youtube_cookies
     else:
         print("Cookie file not found or invalid.")
 
