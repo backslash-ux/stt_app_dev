@@ -1,7 +1,7 @@
 # .gitignore
 
 #plain_text
-*.txt
+
 
 # Node
 node_modules/
@@ -63,3 +63,9 @@ Thumbs.db
 # Folders to exclude
 /uploads/
 /downloads/
+frontend/src/all_code.txt
+history.txt
+www.youtube.com_cookies.txt
+backend/all_code.txt
+backend/backup_schema.txt
+backend/tree.txt
