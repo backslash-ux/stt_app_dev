@@ -30,7 +30,15 @@ export default function ContentHistory({ contentHistory }) {
                                 {entry.transcription_title || "Unknown Source"}
                             </p>
                             <p className="text-sm text-gray-600">
-                                {new Date(entry.created_at)}
+                                {new Date(entry.created_at).toLocaleString("id-ID", {
+                                    timeZone: "Asia/Jakarta",
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    second: "2-digit",
+                                })}
                             </p>
                         </div>
                     ))

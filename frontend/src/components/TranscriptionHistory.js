@@ -37,7 +37,15 @@ export default function TranscriptionHistory({ transcriptionHistory, onDone = ()
                                 </p>
                                 <p className="text-sm text-gray-600">{transcription.source}</p>
                                 <p className="text-xs text-gray-500">
-                                    {new Date(transcription.created_at)}
+                                    {new Date(transcription.created_at).toLocaleString("id-ID", {
+                                        timeZone: "Asia/Jakarta",
+                                        year: "numeric",
+                                        month: "long",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        second: "2-digit",
+                                    })}
                                 </p>
                             </div>
                         ))

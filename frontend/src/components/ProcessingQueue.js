@@ -33,14 +33,30 @@ export default function ProcessingQueue({ processingQueue }) {
                             {/* Show creation time if available */}
                             {job.created_at && (
                                 <p className="text-xs text-gray-400 mt-1">
-                                    Created: {new Date(job.created_at)}
+                                    Created: {new Date(job.created_at).toLocaleString("id-ID", {
+                                        timeZone: "Asia/Jakarta",
+                                        year: "numeric",
+                                        month: "long",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        second: "2-digit",
+                                    })}
                                 </p>
                             )}
 
                             {/* Show completion time if job is completed */}
                             {job.status === "completed" && job.completed_at && (
                                 <p className="text-xs text-gray-400">
-                                    Completed: {new Date(job.completed_at)}
+                                    Completed: {new Date(job.completed_at).toLocaleString("id-ID", {
+                                        timeZone: "Asia/Jakarta",
+                                        year: "numeric",
+                                        month: "long",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        second: "2-digit",
+                                    })}
                                 </p>
                             )}
                         </div>
