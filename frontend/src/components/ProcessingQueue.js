@@ -33,14 +33,14 @@ export default function ProcessingQueue({ processingQueue }) {
                             {/* Show creation time if available */}
                             {job.created_at && (
                                 <p className="text-xs text-gray-400 mt-1">
-                                    Created: {new Date(job.created_at).toLocaleString()}
+                                    Created: {new Date(job.created_at)}
                                 </p>
                             )}
 
                             {/* Show completion time if job is completed */}
                             {job.status === "completed" && job.completed_at && (
                                 <p className="text-xs text-gray-400">
-                                    Completed: {new Date(job.completed_at).toLocaleString()}
+                                    Completed: {new Date(job.completed_at)}
                                 </p>
                             )}
                         </div>

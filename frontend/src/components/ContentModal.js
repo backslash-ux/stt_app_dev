@@ -35,7 +35,7 @@ export default function ContentModal({ isOpen, onClose, content }) {
 
                         <p className="text-sm text-gray-600 mb-4">
                             <strong>Created At:</strong>{" "}
-                            {new Date(content.created_at).toLocaleString()}
+                            {new Date(content.created_at)}
                         </p>
 
                         {Object.keys(configObj).length > 0 ? (

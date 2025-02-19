@@ -31,13 +31,13 @@ export function ProcessingQueue({ processingQueue }) {
 
                             {job.created_at && (
                                 <p className="text-xs text-gray-400 mt-1">
-                                    Created: {new Date(job.created_at).toLocaleString()}
+                                    Created: {new Date(job.created_at)}
                                 </p>
                             )}
 
                             {job.completed_at && job.status === "completed" && (
                                 <p className="text-xs text-gray-400">
-                                    Completed: {new Date(job.completed_at).toLocaleString()}
+                                    Completed: {new Date(job.completed_at)}
                                 </p>
                             )}
                         </div>

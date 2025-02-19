@@ -37,7 +37,7 @@ export default function TranscriptionHistory({ transcriptionHistory, onDone = ()
                                 </p>
                                 <p className="text-sm text-gray-600">{transcription.source}</p>
                                 <p className="text-xs text-gray-500">
-                                    {new Date(transcription.created_at).toLocaleString()}
+                                    {new Date(transcription.created_at)}
                                 </p>
                             </div>
                         ))
