@@ -34,7 +34,8 @@ def process_transcription(file_path: str, user_id: int, db_session: Session, job
         transcription_text = transcribe_audio_with_whisper(file_path)
 
         file_title = os.path.basename(file_path)
-        public_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/uploads/{file_title}"
+        # Updated: Store only the relative path instead of the full host URL
+        public_url = f"/uploads/{file_title}"
         create_history_record(db_session, user_id, "Upload",
                               public_url, transcription_text, title=file_title)
 

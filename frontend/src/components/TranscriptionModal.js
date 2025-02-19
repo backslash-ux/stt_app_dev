@@ -15,7 +15,10 @@ export default function TranscriptionModal({
 }) {
     if (!isOpen || !transcription) return null;
 
-    // Use global jobs context instead of a passed prop
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const audioSrc = transcription.video_url.startsWith('http')
+        ? transcription.video_url
+        : `${apiBaseUrl}${transcription.video_url}`;
     const { addJob, updateJobStatus } = useJobs();
 
     const [step, setStep] = useState(1); // 1: Transcription, 2: Config, 3: Generated Content
@@ -146,10 +149,7 @@ export default function TranscriptionModal({
                             ></iframe>
                         ) : (
                             <audio controls className="w-full my-2">
-                                <source
-                                    src={transcription.video_url}
-                                    type="audio/mp3"
-                                />
+                                <source src={audioSrc} type="audio/mp3" />
                                 Your browser does not support the audio element.
                             </audio>
                         )}
