@@ -1,9 +1,12 @@
 # backend/models/content_generation.py
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
-# or from sqlalchemy import JSON if not using PG-specific
 from sqlalchemy.dialects.postgresql import JSON
 from backend.database import Base
+from datetime import datetime
+import pytz
+
+UTC_PLUS_7 = pytz.timezone("Asia/Jakarta")
 
 
 class ContentGeneration(Base):
@@ -15,7 +18,7 @@ class ContentGeneration(Base):
         'transcription_history.id'), nullable=False)
     title = Column(String, nullable=True)
     generated_content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime(timezone=True), default=func.now())
 
     # New column to store user config
     config = Column(JSON, nullable=True)
@@ -23,3 +26,7 @@ class ContentGeneration(Base):
     user = relationship("User", back_populates="content_generations")
     transcription_history = relationship(
         "TranscriptionHistory", back_populates="content_generations")
+
+    def created_at_utc7(self):
+        """Convert stored UTC timestamp to UTC+7"""
+        return self.created_at.astimezone(UTC_PLUS_7) if self.created_at else None
