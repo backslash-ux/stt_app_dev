@@ -31,14 +31,8 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
+        'cookies-from-browser': 'chrome',
     }
-
-    # Use cookie path from settings
-    youtube_cookies = settings.YOUTUBE_COOKIES
-    if youtube_cookies and os.path.exists(youtube_cookies):
-        ydl_opts["cookies"] = youtube_cookies
-    else:
-        print("Cookie file not found or invalid.")
 
     os.makedirs(output_path, exist_ok=True)
 
