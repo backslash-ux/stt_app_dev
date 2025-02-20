@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-    title: "ACTS - Audio Recording & Creative Transcription Information System",
+    title: "ACTS - Audio Recording & Creative Transcription System",
     description: "Transcribe and generate content from audio files and YouTube video powered by Tim Digital Garuda TV",
     icon: "/favicon.ico",
 };

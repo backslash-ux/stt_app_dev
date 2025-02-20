@@ -48,7 +48,7 @@ export default function Home() {
   return (
     <div className="max-w-7xl mx-auto w-full px-4 py-8 flex flex-col">
       <h1 className="text-3xl font-bold text-center mb-2">
-        ACTS (Audio Recording & Creative Transcription Information System)
+        ACTS (Audio Recording & Creative Transcription System)
       </h1>
       <p className="text-gray-600 text-center mb-6">
         Logged in as: <span className="font-medium">{user.email}</span>

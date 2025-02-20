@@ -55,3 +55,7 @@ strong {
   font-size: larger;
   font-weight: bolder;
 }
+
+.generated-content h2 {
+  font-weight: bold;
+}
