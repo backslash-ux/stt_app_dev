@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import uuid
-import yt_dlp  # <-- For metadata extraction
+import yt_dlp
 from backend.utils.youtube_utils import download_youtube_audio
 from backend.utils.job_status import create_job, update_job, get_job
 from backend.utils.transcribe_utils import transcribe_audio_with_whisper

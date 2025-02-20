@@ -11,8 +11,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# ✅ Ensure tables are created properly
-
 
 def init_db():
     from backend.models import user, transcription, content_generation  # Correct import

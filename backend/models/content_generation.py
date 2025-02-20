@@ -1,7 +1,6 @@
 # backend/models/content_generation.py
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
-# or from sqlalchemy import JSON if not using PG-specific
 from sqlalchemy.dialects.postgresql import JSON
 from backend.database import Base
 

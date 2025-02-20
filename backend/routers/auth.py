@@ -1,12 +1,12 @@
 # backend/routers/auth.py
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend.crud.user_crud import create_user, get_user_by_email
 from passlib.context import CryptContext
-from jose import jwt, JWTError
+from jose import jwt
 from datetime import datetime, timedelta
 from backend.utils.dependencies import get_current_user
 from backend.models.user import User
@@ -39,11 +39,23 @@ def get_db():
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
+def register_user(
+    req: RegisterRequest,
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    allowed_hosts = {"127.0.0.1", "::1"}
+    if request.client.host not in allowed_hosts:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is only allowed via localhost"
+        )
+
     existing = get_user_by_email(db, req.email)
     if existing:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
+        )
 
     user = create_user(db, req.email, req.password)
     return {"message": "User registered successfully", "user_id": user.id}
@@ -57,7 +69,8 @@ def login_user(req: LoginRequest, db: Session = Depends(get_db)):
 
         if not user or not pwd_context.verify(req.password, user.password_hash):
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+            )
 
         access_token = create_access_token({"sub": str(user.id)})
         return {"access_token": access_token, "token_type": "bearer"}
@@ -65,7 +78,8 @@ def login_user(req: LoginRequest, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Login Error: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
+        )
 
 
 @router.get("/me", response_model=dict, status_code=status.HTTP_200_OK)

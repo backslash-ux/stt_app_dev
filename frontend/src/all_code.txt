@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-    title: "Audio Transcriber & Content Generator App",
+    title: "ACTS - Audio Recording & Creative Transcription Information System",
     description: "Transcribe and generate content from audio files and YouTube video powered by Tim Digital Garuda TV",
+    icon: "/favicon.ico",
 };
 
 export default function RootLayout({ children }) {
@@ -122,7 +123,7 @@ export default function Home() {
   return (
     <div className="max-w-7xl mx-auto w-full px-4 py-8 flex flex-col">
       <h1 className="text-3xl font-bold text-center mb-2">
-        Audio Transcriber &amp; Content Generator App
+        ACTS (Audio Recording & Creative Transcription Information System)
       </h1>
       <p className="text-gray-600 text-center mb-6">
         Logged in as: <span className="font-medium">{user.email}</span>
@@ -736,7 +737,10 @@ export default function TranscriptionModal({
 }) {
     if (!isOpen || !transcription) return null;
 
-    // Use global jobs context instead of a passed prop
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const audioSrc = transcription.video_url.startsWith('http')
+        ? transcription.video_url
+        : `${apiBaseUrl}${transcription.video_url}`;
     const { addJob, updateJobStatus } = useJobs();
 
     const [step, setStep] = useState(1); // 1: Transcription, 2: Config, 3: Generated Content
@@ -867,10 +871,7 @@ export default function TranscriptionModal({
                             ></iframe>
                         ) : (
                             <audio controls className="w-full my-2">
-                                <source
-                                    src={transcription.video_url}
-                                    type="audio/mp3"
-                                />
+                                <source src={audioSrc} type="audio/mp3" />
                                 Your browser does not support the audio element.
                             </audio>
                         )}

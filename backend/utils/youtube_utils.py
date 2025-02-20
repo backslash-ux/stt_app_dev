@@ -19,8 +19,9 @@ def download_youtube_audio(youtube_url: str, output_path: str = "downloads") -> 
     has a proper `.mp3` extension (rather than `_mp3`). Returns the full path to the
     downloaded .mp3 file.
 
-    If the environment variable YOUTUBE_COOKIES is set to a valid file path, that
-    cookies file will be used for authentication.
+    Args:
+        youtube_url (str): The URL of the YouTube video to download.
+        output_path (str): The directory to save the downloaded file. Defaults to "downloads".
     """
     # Base yt_dlp options with a realistic user agent
     ydl_opts = {

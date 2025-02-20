@@ -8,8 +8,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_user(db: Session, email: str, password: str) -> User:
-    password_hash = pwd_context.hash(password)  # ✅ Correct field name
-    # ✅ Match database schema
+    password_hash = pwd_context.hash(password)
     new_user = User(email=email, password_hash=password_hash)
     db.add(new_user)
     db.commit()

@@ -10,7 +10,7 @@ def create_history_record(db: Session, user_id: int, source: str, video_url: str
         source=source,
         video_url=video_url,
         transcript=transcript,
-        title=title  # set title here
+        title=title
     )
     db.add(history)
     db.commit()
