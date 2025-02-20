@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     APP_HOST: str
     APP_PORT: int
     DATABASE_URL: str
-    YOUTUBE_COOKIES: str
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8"
