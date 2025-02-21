@@ -1,5 +1,4 @@
-//src/app/login/page.js
-
+// frontend/src/app/login/page.js
 "use client";
 
 import { useState } from "react";
@@ -26,12 +25,11 @@ export default function Login() {
             const response = await axios.post(`${API_BASE_URL}/auth/login`, {
                 email,
                 password,
+            }, {
+                withCredentials: true, // Enable cookies
             });
 
-            const { access_token } = response.data;
-            localStorage.setItem("token", access_token);
-
-            // Redirect to dashboard
+            // No need to store token in localStorage; backend sets HTTP-only cookie
             router.push("/");
         } catch (err) {
             console.error(err);
