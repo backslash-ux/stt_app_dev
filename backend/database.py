@@ -13,5 +13,5 @@ Base = declarative_base()
 
 
 def init_db():
-    from backend.models import user, transcription, content_generation  # Correct import
+    from backend.models import user, transcription, content_generation, job  # Append job
     Base.metadata.create_all(bind=engine)

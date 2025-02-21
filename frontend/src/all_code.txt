@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-    title: "ACTS - Audio Recording & Creative Transcription Information System",
+    title: "ACTS - Audio Recording & Creative Transcription System",
     description: "Transcribe and generate content from audio files and YouTube video powered by Tim Digital Garuda TV",
     icon: "/favicon.ico",
 };
@@ -123,7 +123,7 @@ export default function Home() {
   return (
     <div className="max-w-7xl mx-auto w-full px-4 py-8 flex flex-col">
       <h1 className="text-3xl font-bold text-center mb-2">
-        ACTS (Audio Recording & Creative Transcription Information System)
+        ACTS (Audio Recording & Creative Transcription System)
       </h1>
       <p className="text-gray-600 text-center mb-6">
         Logged in as: <span className="font-medium">{user.email}</span>
@@ -216,8 +216,7 @@ function StatsOverview({ transcriptionCount, contentCount }) {
       </ul>
     </div>
   );
-}//src/app/login/page.js
-
+}// frontend/src/app/login/page.js
 "use client";
 
 import { useState } from "react";
@@ -244,12 +243,11 @@ export default function Login() {
             const response = await axios.post(`${API_BASE_URL}/auth/login`, {
                 email,
                 password,
+            }, {
+                withCredentials: true, // Enable cookies
             });
 
-            const { access_token } = response.data;
-            localStorage.setItem("token", access_token);
-
-            // Redirect to dashboard
+            // No need to store token in localStorage; backend sets HTTP-only cookie
             router.push("/");
         } catch (err) {
             console.error(err);
@@ -306,29 +304,38 @@ import axios from "axios";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
 
+const apiClient = axios.create({
+    baseURL: API_BASE_URL,
+    withCredentials: true,
+});
+
+apiClient.interceptors.response.use(
+    response => response,
+    error => {
+        if (error.response && error.response.status === 401) {
+            window.location.href = "/login";
+        }
+        return Promise.reject(error);
+    }
+);
+
 export const getUser = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("No token found");
-    return axios.get(`${API_BASE_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
+    return apiClient.get(`/auth/me`);
 };
 
 export const fetchHistory = async () => {
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
-
-    // Use Promise.all to fetch both endpoints concurrently
     const [transcriptionsRes, contentsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/history/`, { headers }),
-        axios.get(`${API_BASE_URL}/content-history/`, { headers }),
+        apiClient.get(`/history/`),
+        apiClient.get(`/content-history/`),
     ]);
 
     return [
         { data: transcriptionsRes.data },
         { data: contentsRes.data },
     ];
-};// src/components/ProcessingQueue.js
+};
+
+export default apiClient;// src/components/ProcessingQueue.js
 "use client";
 
 import { useEffect } from "react";
@@ -995,7 +1002,6 @@ export default function TranscribeSection() {
     const [youtubeUrl, setYoutubeUrl] = useState("");
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
 
@@ -1006,15 +1012,13 @@ export default function TranscribeSection() {
             const response = await axios.post(
                 `${API_BASE_URL}/youtube/process-youtube/`,
                 { youtube_url: youtubeUrl },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { withCredentials: true } // Use cookies instead of token
             );
 
-            // Extract the job_id and youtube_title from the response
             const { job_id, youtube_title } = response.data;
 
             addJob({
                 job_id,
-                // Use the actual extracted title from the backend
                 title: `YouTube: ${youtube_title}`,
                 type: "transcription",
                 source: "youtube",
@@ -1022,8 +1026,10 @@ export default function TranscribeSection() {
             });
         } catch (error) {
             console.error("Error starting transcription:", error);
+            throw error; // Let caller handle the error if needed
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleFileUpload = (event) => {
@@ -1040,10 +1046,8 @@ export default function TranscribeSection() {
                 `${API_BASE_URL}/upload/upload-audio/`,
                 formData,
                 {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "multipart/form-data",
-                    },
+                    withCredentials: true, // Use cookies instead of token
+                    headers: { "Content-Type": "multipart/form-data" },
                 }
             );
 
@@ -1056,8 +1060,10 @@ export default function TranscribeSection() {
             });
         } catch (error) {
             console.error("Error uploading file:", error);
+            throw error; // Let caller handle the error if needed
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (

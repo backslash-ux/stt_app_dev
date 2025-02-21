@@ -9,8 +9,6 @@ export default function ContentGeneration({ transcriptionHistory, onJobUpdate, o
     const [selectedTranscription, setSelectedTranscription] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // If you want to provide some UI for the user to choose options, you can add them here.
-    // For now, let's mimic the same hardcoded approach with a 'config' object:
     const configDefaults = {
         "Gaya Bahasa": "Formal",
         "Kepadatan Informasi": "Ringkas",
@@ -23,7 +21,6 @@ export default function ContentGeneration({ transcriptionHistory, onJobUpdate, o
         "Catatan Tambahan": ""
     };
 
-    // Retrieve the API base URL from environment variables or fallback
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
 
     const handleGenerateContent = async () => {
@@ -32,10 +29,7 @@ export default function ContentGeneration({ transcriptionHistory, onJobUpdate, o
             return;
         }
 
-        // Create a local job ID using the browser's crypto API
         const localJobId = uuidv4();
-
-        // Look up the selected transcription to get a title.
         const selectedObj = transcriptionHistory.find(
             (t) => t.id === parseInt(selectedTranscription)
         );
@@ -43,7 +37,6 @@ export default function ContentGeneration({ transcriptionHistory, onJobUpdate, o
             ? selectedObj.title || selectedObj.transcript.slice(0, 30)
             : "Content Generation";
 
-        // 1) Add job to queue as "pending" with a title.
         onJobUpdate({
             job_id: localJobId,
             status: "pending",
@@ -54,10 +47,6 @@ export default function ContentGeneration({ transcriptionHistory, onJobUpdate, o
         setIsGenerating(true);
 
         try {
-            const token = localStorage.getItem("token");
-
-            // Build the request body
-            // Include config with the same keys as in TranscriptionModal or your own
             const requestBody = {
                 transcription_id: parseInt(selectedTranscription),
                 transcription: selectedObj ? selectedObj.transcript : "",
@@ -70,19 +59,15 @@ export default function ContentGeneration({ transcriptionHistory, onJobUpdate, o
                 bahasa: configDefaults["Pilihan Bahasa & Dialek"],
                 penyuntingan: configDefaults["Penyuntingan Otomatis"],
                 catatan_tambahan: configDefaults["Catatan Tambahan"],
-                // Pass the entire config object
                 config: configDefaults,
             };
 
             await axios.post(
                 `${API_BASE_URL}/generate/`,
                 requestBody,
-                {
-                    headers: { Authorization: `Bearer ${token}` },
-                }
+                { withCredentials: true } // Use cookie auth
             );
 
-            // 2) Mark the job as "completed" (keep the title)
             onJobUpdate({
                 job_id: localJobId,
                 status: "completed",
@@ -90,15 +75,10 @@ export default function ContentGeneration({ transcriptionHistory, onJobUpdate, o
                 title: `Content: ${jobTitle}`
             });
 
-            // Notify parent to refresh content history immediately
-            if (onDone) {
-                onDone();
-            }
+            if (onDone) onDone();
         } catch (error) {
             console.error("Error generating content:", error);
             alert("Failed to generate content.");
-
-            // Mark the job as "failed" (keeping the title)
             onJobUpdate({
                 job_id: localJobId,
                 status: "failed",

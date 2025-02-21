@@ -8,7 +8,6 @@ export function ProcessingQueue({ processingQueue }) {
         console.log("🟢 ProcessingQueue Updated:", processingQueue);
     }, [processingQueue]);
 
-    // Sort the jobs by created_at descending so the newest job is first
     const sortedJobs = (processingQueue || []).slice().sort((a, b) => {
         const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
         const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
@@ -23,18 +22,15 @@ export function ProcessingQueue({ processingQueue }) {
                     sortedJobs.map((job) => (
                         <div
                             key={job.job_id}
-                            className={`p-4 rounded-lg shadow cursor-pointer transition ${job.status === "processing" ? "bg-blue-100" : "bg-gray-50"
-                                } hover:bg-gray-200`}
+                            className={`p-4 rounded-lg shadow cursor-pointer transition ${job.status === "processing" ? "bg-blue-100" : "bg-gray-50"} hover:bg-gray-200`}
                         >
                             <p className="font-semibold">{job.title || "Untitled Job"}</p>
                             <p className="text-xs text-gray-500">Status: {job.status}</p>
-
                             {job.created_at && (
                                 <p className="text-xs text-gray-400 mt-1">
                                     Created: {new Date(job.created_at).toLocaleString()}
                                 </p>
                             )}
-
                             {job.completed_at && job.status === "completed" && (
                                 <p className="text-xs text-gray-400">
                                     Completed: {new Date(job.completed_at).toLocaleString()}
@@ -52,53 +48,34 @@ export function ProcessingQueue({ processingQueue }) {
 
 const JobsContext = createContext();
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
-const JOBS_STORAGE_KEY = "processingQueue";
 
 export function JobsProvider({ children }) {
-    // Clear stale jobs from localStorage on mount so old job IDs are removed.
-    useEffect(() => {
-        if (typeof window !== "undefined") {
-            localStorage.removeItem(JOBS_STORAGE_KEY);
-        }
-    }, []);
-
-    // Load initial queue state from localStorage if available.
-    const [processingQueue, setProcessingQueue] = useState(() => {
-        if (typeof window !== "undefined") {
-            try {
-                const stored = localStorage.getItem(JOBS_STORAGE_KEY);
-                return stored ? JSON.parse(stored) : [];
-            } catch (error) {
-                console.error("Error reading stored jobs:", error);
-                return [];
-            }
-        }
-        return []; // Return empty array during SSR
-    });
-
+    const [processingQueue, setProcessingQueue] = useState([]);
     const queueRef = useRef(processingQueue);
 
     useEffect(() => {
         queueRef.current = processingQueue;
-        if (typeof window !== "undefined") {
-            localStorage.setItem(JOBS_STORAGE_KEY, JSON.stringify(processingQueue));
-        }
     }, [processingQueue]);
 
-    // This effect polls every second to see if the token is gone.
-    // If no token is found, clear the job queue.
-    useEffect(() => {
-        const checkToken = () => {
-            const token = localStorage.getItem("token");
-            if (!token) {
-                setProcessingQueue([]);
-                localStorage.removeItem(JOBS_STORAGE_KEY);
-            }
-        };
+    const fetchOngoingJobs = async () => {
+        try {
+            const response = await axios.get(`${API_BASE_URL}/jobs/ongoing/`, {
+                withCredentials: true,
+            });
+            setProcessingQueue(response.data.map(job => ({
+                job_id: job.job_id,
+                status: job.status,
+                created_at: job.created_at,
+                completed_at: job.completed_at,
+                title: `Job ${job.job_id.slice(0, 8)}`, // Placeholder title, adjust as needed
+            })));
+        } catch (error) {
+            console.error("Failed to fetch ongoing jobs:", error);
+        }
+    };
 
-        checkToken(); // initial check
-        const intervalId = setInterval(checkToken, 1000);
-        return () => clearInterval(intervalId);
+    useEffect(() => {
+        fetchOngoingJobs(); // Fetch ongoing jobs on mount
     }, []);
 
     const addJob = (job) => {
@@ -146,11 +123,6 @@ export function JobsProvider({ children }) {
             if (typeof window === "undefined") {
                 return;
             }
-            const token = localStorage.getItem("token");
-            if (!token) {
-                console.error("❌ No authentication token found.");
-                return;
-            }
             console.log("🔄 Fetching job statuses for jobs:", currentQueue.map((job) => job.job_id));
 
             try {
@@ -159,12 +131,12 @@ export function JobsProvider({ children }) {
                         try {
                             const res = await axios.get(
                                 `${API_BASE_URL}/jobs/${job.job_id}/status`,
-                                { headers: { Authorization: `Bearer ${token}` } }
+                                { withCredentials: true }
                             );
                             console.log(`✅ Fetched status for job ${job.job_id}:`, res.data.status);
                             return { job_id: job.job_id, status: res.data.status };
                         } catch (error) {
-                            console.error(`❌ Error fetching job ${job.job_id} status:`, error);
+                            console.error(`❌ Error fetching job ${job.job_id} status:`, error.response?.status, error.message);
                             return { job_id: job.job_id, status: "failed" };
                         }
                     })

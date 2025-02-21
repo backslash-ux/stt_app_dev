@@ -1,17 +1,16 @@
 # backend/routers/generate.py
 from openai import OpenAI
-from backend.config import settings  # Import settings before usage
+from backend.config import settings
 from backend.utils.job_status import create_job, update_job
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from backend.database import SessionLocal  # <-- Ensure correct import order
+from backend.database import SessionLocal
 from backend.models.user import User
 from backend.models.content_generation import ContentGeneration
 from backend.models.transcription import TranscriptionHistory
-from backend.utils.dependencies import get_current_user  # Import the new model
+from backend.utils.dependencies import get_current_user
 
-# Initialize OpenAI client with API key from settings
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 router = APIRouter()
@@ -48,9 +47,11 @@ async def generate_article(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # Register the job using the provided job_id
-        create_job(request.job_id)
-        update_job(request.job_id, "processing")
+        transcription = db.query(TranscriptionHistory).filter(
+            TranscriptionHistory.id == request.transcription_id
+        ).first()
+        title = transcription.title if transcription else "Untitled Content"
+        create_job(request.job_id, current_user.id, f"Content: {title}", db)
 
         prompt = f"""
         Anda adalah seorang jurnalis yang ahli dalam membuat artikel/berita/blog berdasarkan transkripsi. Berikut adalah detailnya:
@@ -85,17 +86,17 @@ async def generate_article(
             transcription_history_id=request.transcription_id,
             generated_content=article_content,
             title=transcription.title if transcription else None,
-            config=request.config  # Store the user configuration
+            config=request.config
         )
         db.add(content_generation_record)
         db.commit()
         db.refresh(content_generation_record)
 
-        # Update job status to completed with the generated article content
-        update_job(request.job_id, "completed", article_content)
+        update_job(request.job_id, "completed",
+                   article_content, db=db)  # Pass db
 
         return {"article": article_content, "content_id": content_generation_record.id}
 
     except Exception as e:
-        update_job(request.job_id, "failed")
+        update_job(request.job_id, "failed", db=db)  # Pass db
         raise HTTPException(status_code=500, detail=str(e))

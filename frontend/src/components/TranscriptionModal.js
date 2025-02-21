@@ -4,7 +4,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
-import { useJobs } from "../hooks/useJobs"; // Import the jobs context
+import { useJobs } from "../hooks/useJobs";
 import DOMPurify from "dompurify";
 
 export default function TranscriptionModal({
@@ -21,7 +21,7 @@ export default function TranscriptionModal({
         : `${apiBaseUrl}${transcription.video_url}`;
     const { addJob, updateJobStatus } = useJobs();
 
-    const [step, setStep] = useState(1); // 1: Transcription, 2: Config, 3: Generated Content
+    const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [generatedContent, setGeneratedContent] = useState("");
     const [selectedOptions, setSelectedOptions] = useState({
@@ -54,15 +54,13 @@ export default function TranscriptionModal({
     const handleGenerateContent = async () => {
         setLoading(true);
         setGeneratedContent("");
-        setStep(3); // Move to generated content column
+        setStep(3);
 
-        // Combine the config options + additional notes
         const combinedConfig = {
             ...selectedOptions,
             "Catatan Tambahan": additionalNotes,
         };
 
-        // Generate a unique job ID
         const jobId = uuidv4();
         const job = {
             job_id: jobId,
@@ -71,20 +69,16 @@ export default function TranscriptionModal({
             title: `Content: ${transcription.title || "Untitled"}`,
         };
 
-        // Add job with "pending" status to the global jobs list
         addJob(job);
 
         try {
-            // Update job to "processing" as we start the API call
             updateJobStatus({ ...job, status: "processing" });
 
-            const token = localStorage.getItem("token");
-            const API_BASE_URL =
-                process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
             const response = await axios.post(
                 `${API_BASE_URL}/generate/`,
                 {
-                    job_id: jobId, // Include the job ID here
+                    job_id: jobId,
                     transcription_id: transcription.id,
                     transcription: transcription.transcript,
                     gaya_bahasa: selectedOptions["Gaya Bahasa"],
@@ -96,32 +90,26 @@ export default function TranscriptionModal({
                     bahasa: selectedOptions["Pilihan Bahasa & Dialek"],
                     penyuntingan: selectedOptions["Penyuntingan Otomatis"],
                     catatan_tambahan: additionalNotes,
-                    config: combinedConfig, // <---- pass combined config here
+                    config: combinedConfig,
                 },
-                {
-                    headers: { Authorization: `Bearer ${token}` },
-                }
+                { withCredentials: true } // Use cookie auth
             );
 
             setGeneratedContent(response.data.article);
-
-            // Update job status to "completed" on success
             updateJobStatus({ ...job, status: "completed" });
             if (onDone) onDone();
         } catch (error) {
             console.error("Error generating content:", error);
-            // Update job status to "failed" if there is an error
             updateJobStatus({ ...job, status: "failed" });
             if (onDone) onDone();
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col">
-                {/* Scrollable Content Area */}
                 <div
                     className={`flex flex-grow transition-all duration-300 ${step === 1
                         ? "grid-cols-1"
@@ -130,7 +118,6 @@ export default function TranscriptionModal({
                             : "grid-cols-3"
                         } grid gap-4 overflow-hidden`}
                 >
-                    {/* Column 1: Transcription Info */}
                     <div className="p-4 overflow-y-auto">
                         <h2 className="text-2xl font-bold">
                             {transcription.title || "Transcription Details"}
@@ -138,13 +125,10 @@ export default function TranscriptionModal({
                         <p className="text-sm text-gray-600">
                             Source: {transcription.source}
                         </p>
-
                         {transcription.source === "YouTube" ? (
                             <iframe
                                 className="aspect-video w-full h-auto my-2"
-                                src={`https://www.youtube.com/embed/${new URL(
-                                    transcription.video_url
-                                ).searchParams.get("v")}`}
+                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get("v")}`}
                                 allowFullScreen
                             ></iframe>
                         ) : (
@@ -153,11 +137,9 @@ export default function TranscriptionModal({
                                 Your browser does not support the audio element.
                             </audio>
                         )}
-
                         <p className="text-gray-800 whitespace-pre-wrap">
                             {transcription.transcript}
                         </p>
-
                         {step === 1 && (
                             <button
                                 onClick={() => setStep(2)}
@@ -167,8 +149,6 @@ export default function TranscriptionModal({
                             </button>
                         )}
                     </div>
-
-                    {/* Column 2: Content Generation Config */}
                     {step > 1 && (
                         <div className="p-4 overflow-y-auto">
                             <h3 className="text-xl font-bold">Generate Content</h3>
@@ -184,26 +164,20 @@ export default function TranscriptionModal({
                                         className="border rounded p-2 w-full bg-white"
                                     >
                                         {dropdownOptions[key].map((opt) => (
-                                            <option
-                                                key={`${key}-${opt}`}
-                                                value={opt}
-                                            >
+                                            <option key={`${key}-${opt}`} value={opt}>
                                                 {opt}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                             ))}
-                            {/* Textarea for Additional Notes */}
                             <div className="mb-2">
                                 <label className="block font-semibold">
                                     Catatan Tambahan:
                                 </label>
                                 <textarea
                                     value={additionalNotes}
-                                    onChange={(e) =>
-                                        setAdditionalNotes(e.target.value)
-                                    }
+                                    onChange={(e) => setAdditionalNotes(e.target.value)}
                                     className="border rounded p-2 w-full bg-white"
                                     placeholder="Masukkan catatan tambahan (opsional)"
                                     rows={3}
@@ -218,30 +192,20 @@ export default function TranscriptionModal({
                             </button>
                         </div>
                     )}
-
-                    {/* Column 3: Generated Content (Rich Text Output) */}
                     {step === 3 && (
                         <div className="p-4 overflow-y-auto">
-                            <h3 className="text-xl font-bold">
-                                Generated Content
-                            </h3>
+                            <h3 className="text-xl font-bold">Generated Content</h3>
                             <div className="border p-4 rounded-lg bg-gray-50">
-                                {/* Sanitize the HTML output using DOMPurify */}
                                 <div
                                     className="generated-content"
                                     dangerouslySetInnerHTML={{
-                                        __html:
-                                            DOMPurify.sanitize(
-                                                generatedContent
-                                            ),
+                                        __html: DOMPurify.sanitize(generatedContent),
                                     }}
                                 />
                             </div>
                         </div>
                     )}
                 </div>
-
-                {/* Back / Close Button */}
                 <div className="flex justify-between mt-4">
                     {step > 1 && (
                         <button

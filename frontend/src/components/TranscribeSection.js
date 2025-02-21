@@ -10,7 +10,6 @@ export default function TranscribeSection() {
     const [youtubeUrl, setYoutubeUrl] = useState("");
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
 
@@ -21,15 +20,13 @@ export default function TranscribeSection() {
             const response = await axios.post(
                 `${API_BASE_URL}/youtube/process-youtube/`,
                 { youtube_url: youtubeUrl },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { withCredentials: true } // Use cookies instead of token
             );
 
-            // Extract the job_id and youtube_title from the response
             const { job_id, youtube_title } = response.data;
 
             addJob({
                 job_id,
-                // Use the actual extracted title from the backend
                 title: `YouTube: ${youtube_title}`,
                 type: "transcription",
                 source: "youtube",
@@ -37,8 +34,10 @@ export default function TranscribeSection() {
             });
         } catch (error) {
             console.error("Error starting transcription:", error);
+            throw error; // Let caller handle the error if needed
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleFileUpload = (event) => {
@@ -55,10 +54,8 @@ export default function TranscribeSection() {
                 `${API_BASE_URL}/upload/upload-audio/`,
                 formData,
                 {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "multipart/form-data",
-                    },
+                    withCredentials: true, // Use cookies instead of token
+                    headers: { "Content-Type": "multipart/form-data" },
                 }
             );
 
@@ -71,8 +68,10 @@ export default function TranscribeSection() {
             });
         } catch (error) {
             console.error("Error uploading file:", error);
+            throw error; // Let caller handle the error if needed
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (

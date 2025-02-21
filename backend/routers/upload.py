@@ -29,22 +29,21 @@ def get_db():
 
 
 def process_transcription(file_path: str, user_id: int, db_session: Session, job_id: str):
-    update_job(job_id, "processing")
+    update_job(job_id, "processing", db=db_session)  # Pass db
     try:
         transcription_text = transcribe_audio_with_whisper(file_path)
 
         file_title = os.path.basename(file_path)
-        # Updated: Store only the relative path instead of the full host URL
         public_url = f"/uploads/{file_title}"
         create_history_record(db_session, user_id, "Upload",
                               public_url, transcription_text, title=file_title)
 
-        update_job(job_id, "completed", transcription_text)
-
+        update_job(job_id, "completed", transcription_text,
+                   db=db_session)  # Pass db
         print(f"✅ Transcription completed for {file_path}")
 
     except Exception as e:
-        update_job(job_id, "failed")
+        update_job(job_id, "failed", db=db_session)  # Pass db
         print(f"❌ Error during transcription: {e}")
 
 
@@ -71,7 +70,8 @@ async def upload_audio(
             shutil.copyfileobj(file.file, buffer)
 
         job_id = str(uuid.uuid4())
-        create_job(job_id)
+        create_job(job_id, current_user.id, f"YouTube: {youtube_title}", db)
+
         background_tasks.add_task(
             process_transcription, file_path, current_user.id, db, job_id)
 
@@ -85,8 +85,8 @@ async def upload_audio(
 
 
 @router.get("/jobs/{job_id}/status")
-async def get_job_status(job_id: str):
-    job = get_job(job_id)
+async def get_job_status(job_id: str, db: Session = Depends(get_db)):  # Add db dependency
+    job = get_job(job_id, db)  # Pass db
     if not job:
         raise HTTPException(status_code=404, detail="Job ID not found")
     return job
