@@ -1,6 +1,7 @@
 # backend/routers/auth.py
 
 from fastapi import APIRouter, HTTPException, Depends, status, Request
+from fastapi.responses import JSONResponse  # Added for cookie response
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal
@@ -10,10 +11,11 @@ from jose import jwt
 from datetime import datetime, timedelta
 from backend.utils.dependencies import get_current_user
 from backend.models.user import User
+from backend.config import settings  # Added to use settings.SECRET_KEY
 
 router = APIRouter()
 
-SECRET_KEY = "SUPER_SECRET_KEY"
+SECRET_KEY = settings.SECRET_KEY  # Updated to use settings
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -73,7 +75,19 @@ def login_user(req: LoginRequest, db: Session = Depends(get_db)):
             )
 
         access_token = create_access_token({"sub": str(user.id)})
-        return {"access_token": access_token, "token_type": "bearer"}
+        # Use JSONResponse to set the HTTP-only cookie
+        response = JSONResponse(
+            content={"access_token": access_token, "token_type": "bearer"})
+        response.set_cookie(
+            key="token",
+            value=access_token,
+            httponly=True,
+            # Set to False for local dev (no HTTPS); True in production
+            secure=False,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax",
+        )
+        return response
 
     except Exception as e:
         print(f"Login Error: {str(e)}")

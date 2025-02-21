@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
-    withCredentials: true, // Enable cookie handling
+    withCredentials: true,
 });
 
 apiClient.interceptors.response.use(
