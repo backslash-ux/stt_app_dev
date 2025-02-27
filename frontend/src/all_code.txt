@@ -81,7 +81,6 @@ import { useRouter } from "next/navigation";
 import useAuth from "../hooks/useAuth";
 import useHistory from "../hooks/useHistory";
 import { useJobs } from "../hooks/useJobs";
-
 import TranscribeSection from "../components/TranscribeSection";
 import TranscriptionHistory from "../components/TranscriptionHistory";
 import ContentHistory from "../components/ContentHistory";
@@ -90,7 +89,7 @@ import ProcessingQueue from "../components/ProcessingQueue";
 export default function Home() {
   const user = useAuth();
   const { transcriptionHistory, contentHistory, refreshHistory } = useHistory(user);
-  const { processingQueue } = useJobs();
+  const { processingQueue, isLoading } = useJobs();  // Add isLoading from useJobs
   const router = useRouter();
 
   const [showWarning, setShowWarning] = useState(() => {
@@ -105,7 +104,6 @@ export default function Home() {
     localStorage.setItem("showWarning", "false");
   };
 
-  // Track the previous queue to detect status changes
   const prevQueueRef = useRef([]);
 
   useEffect(() => {
@@ -149,16 +147,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* First Row */}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-        {/* Transcribe Section */}
         <div className="col-span-1 lg:col-span-3 bg-white p-6 rounded-lg shadow h-[28rem] flex items-center">
           <div className="w-full">
             <TranscribeSection />
           </div>
         </div>
 
-        {/* Transcription History */}
         <div className="col-span-1 lg:col-span-5 bg-white p-6 rounded-lg shadow h-[28rem] overflow-y-auto">
           <TranscriptionHistory
             transcriptionHistory={transcriptionHistory}
@@ -166,20 +161,16 @@ export default function Home() {
           />
         </div>
 
-        {/* Ongoing Jobs */}
         <div className="col-span-1 lg:col-span-2 bg-white p-6 rounded-lg shadow h-[28rem] overflow-y-auto">
-          <ProcessingQueue processingQueue={processingQueue} />
+          <ProcessingQueue processingQueue={processingQueue} isLoading={isLoading} />
         </div>
       </div>
 
-      {/* Second Row (60% / 40%) */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-10 gap-6">
-        {/* Content History => 60% width => col-span-6 */}
         <div className="col-span-1 lg:col-span-6 bg-white p-6 rounded-lg shadow h-[28rem] overflow-y-auto">
           <ContentHistory contentHistory={contentHistory} />
         </div>
 
-        {/* User Stats => 40% width => col-span-4 */}
         <div className="col-span-1 lg:col-span-4 bg-white p-6 rounded-lg shadow h-[28rem] overflow-y-auto">
           <StatsOverview
             transcriptionCount={transcriptionHistory.length}
@@ -201,7 +192,6 @@ export default function Home() {
   );
 }
 
-/** Example inline StatsOverview component */
 function StatsOverview({ transcriptionCount, contentCount }) {
   return (
     <div>
@@ -760,6 +750,7 @@ export default function TranscriptionModal({
         setSelectedOptions({ ...selectedOptions, [e.target.name]: e.target.value });
     };
 
+    // src/components/TranscriptionModal.js (partial update)
     const handleGenerateContent = async () => {
         setLoading(true);
         setGeneratedContent("");
@@ -801,14 +792,14 @@ export default function TranscriptionModal({
                     catatan_tambahan: additionalNotes,
                     config: combinedConfig,
                 },
-                { withCredentials: true } // Use cookie auth
+                { withCredentials: true }
             );
 
-            setGeneratedContent(response.data.article);
-            updateJobStatus({ ...job, status: "completed" });
-            if (onDone) onDone();
+            // No article content returned immediately; rely on polling
+            console.log("Content generation started:", response.data);
+            // Don’t setGeneratedContent here; wait for polling to update status
         } catch (error) {
-            console.error("Error generating content:", error);
+            console.error("Error starting content generation:", error);
             updateJobStatus({ ...job, status: "failed" });
             if (onDone) onDone();
         } finally {
@@ -1094,7 +1085,7 @@ export default function useAuth() {
 import axios from "axios";
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 
-export function ProcessingQueue({ processingQueue }) {
+export function ProcessingQueue({ processingQueue, isLoading }) {  // Add isLoading prop
     useEffect(() => {
         console.log("🟢 ProcessingQueue Updated:", processingQueue);
     }, [processingQueue]);
@@ -1109,7 +1100,9 @@ export function ProcessingQueue({ processingQueue }) {
         <div>
             <h2 className="text-xl font-bold mb-4">Ongoing Jobs</h2>
             <div className="space-y-3">
-                {sortedJobs.length > 0 ? (
+                {isLoading ? (
+                    <p className="text-gray-500">Fetching ongoing jobs...</p>
+                ) : sortedJobs.length > 0 ? (
                     sortedJobs.map((job) => (
                         <div
                             key={job.job_id}
@@ -1142,6 +1135,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3
 
 export function JobsProvider({ children }) {
     const [processingQueue, setProcessingQueue] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);  // Add loading state
     const queueRef = useRef(processingQueue);
 
     useEffect(() => {
@@ -1150,6 +1144,7 @@ export function JobsProvider({ children }) {
 
     const fetchOngoingJobs = async () => {
         try {
+            setIsLoading(true);  // Set loading true before fetch
             const response = await axios.get(`${API_BASE_URL}/jobs/ongoing/`, {
                 withCredentials: true,
             });
@@ -1159,10 +1154,12 @@ export function JobsProvider({ children }) {
                 status: job.status,
                 created_at: job.created_at,
                 completed_at: job.completed_at,
-                title: job.title,  // Use backend title
+                title: job.title,
             })));
         } catch (error) {
             console.error("Failed to fetch ongoing jobs:", error);
+        } finally {
+            setIsLoading(false);  // Set loading false after fetch completes
         }
     };
 
@@ -1246,7 +1243,7 @@ export function JobsProvider({ children }) {
     }, [updateJobStatus]);
 
     return (
-        <JobsContext.Provider value={{ processingQueue, addJob, updateJobStatus }}>
+        <JobsContext.Provider value={{ processingQueue, addJob, updateJobStatus, isLoading }}>
             {children}
         </JobsContext.Provider>
     );
