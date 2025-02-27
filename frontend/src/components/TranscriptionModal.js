@@ -144,8 +144,21 @@ export default function TranscriptionModal({
                             </p>
                             <button
                                 onClick={() => {
-                                    navigator.clipboard.writeText(transcription.transcript);
-                                    alert("Transcription copied to clipboard!");
+                                    if (
+                                        typeof navigator !== "undefined" &&
+                                        navigator.clipboard &&
+                                        typeof navigator.clipboard.writeText === "function"
+                                    ) {
+                                        navigator.clipboard
+                                            .writeText(transcription.transcript)
+                                            .then(() => alert("Transcription copied to clipboard!"))
+                                            .catch((err) =>
+                                                console.error("Error copying text to clipboard:", err)
+                                            );
+                                    } else {
+                                        console.error("Clipboard API is not available.");
+                                        alert("Clipboard API is not available in your browser.");
+                                    }
                                 }}
                                 className="mt-2 bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded"
                             >

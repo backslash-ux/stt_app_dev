@@ -87,7 +87,23 @@ export default function ContentModal({ isOpen, onClose, content }) {
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="text-xl font-bold">Generated Content</h3>
                             <button
-                                onClick={handleCopy}
+                                onClick={() => {
+                                    if (
+                                        typeof navigator !== "undefined" &&
+                                        navigator.clipboard &&
+                                        typeof navigator.clipboard.writeText === "function"
+                                    ) {
+                                        navigator.clipboard
+                                            .writeText(content.generated_content)
+                                            .then(() => alert("Generated content copied to clipboard!"))
+                                            .catch((err) =>
+                                                console.error("Error copying text to clipboard:", err)
+                                            );
+                                    } else {
+                                        console.error("Clipboard API is not available.");
+                                        alert("Clipboard API is not available in your browser.");
+                                    }
+                                }}
                                 className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
                             >
                                 Copy
