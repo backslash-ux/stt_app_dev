@@ -1,13 +1,13 @@
 // src/components/ContentModal.js
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import DOMPurify from "dompurify";
 
 export default function ContentModal({ isOpen, onClose, content }) {
     if (!isOpen || !content) return null;
 
-    // Parse configuration if provided
+    // Attempt to parse configuration from content
     let configObj = {};
     try {
         configObj =
@@ -18,23 +18,13 @@ export default function ContentModal({ isOpen, onClose, content }) {
         console.error("Error parsing config:", e);
     }
 
-    // Check if Clipboard API is available
-    const [canCopy, setCanCopy] = useState(false);
-    useEffect(() => {
-        if (typeof window !== "undefined" && navigator.clipboard) {
-            setCanCopy(true);
-        }
-    }, []);
-
-    // Fallback function using document.execCommand
+    // Fallback function using document.execCommand to copy HTML
     const fallbackCopyHtmlToClipboard = (html) => {
         const tempElement = document.createElement("div");
-        // Hide the element off-screen
         tempElement.style.position = "absolute";
         tempElement.style.left = "-9999px";
         tempElement.style.top = "0";
         tempElement.innerHTML = html;
-        // Make it editable so we can select its content
         tempElement.contentEditable = true;
         document.body.appendChild(tempElement);
 
@@ -47,24 +37,24 @@ export default function ContentModal({ isOpen, onClose, content }) {
         try {
             const successful = document.execCommand("copy");
             if (successful) {
-                alert("Generated content copied with fallback!");
+                alert("Generated content copied using fallback!");
             } else {
                 alert("Fallback copy failed.");
             }
         } catch (err) {
             console.error("Fallback: Unable to copy", err);
         }
-
         document.body.removeChild(tempElement);
     };
 
-    // Handle copying rich HTML content
+    // Function to handle copying the generated content
     const handleCopy = async () => {
+        const htmlContent = content.generated_content;
+        // Check if running in a browser
         if (typeof window === "undefined") {
             alert("Clipboard API is not available in this environment.");
             return;
         }
-        const htmlContent = content.generated_content;
         if (navigator.clipboard && navigator.clipboard.write) {
             try {
                 await navigator.clipboard.write([
@@ -79,11 +69,11 @@ export default function ContentModal({ isOpen, onClose, content }) {
                 alert("Generated content copied with rich text formatting!");
             } catch (err) {
                 console.error("Clipboard API write failed:", err);
-                // Fallback to execCommand if Clipboard API fails
+                // Use fallback if Clipboard API fails (e.g. on HTTP)
                 fallbackCopyHtmlToClipboard(htmlContent);
             }
         } else {
-            // Clipboard API not available, use fallback
+            // Clipboard API not available; use fallback
             fallbackCopyHtmlToClipboard(htmlContent);
         }
     };
@@ -127,14 +117,13 @@ export default function ContentModal({ isOpen, onClose, content }) {
                     <div className="flex flex-col h-full overflow-y-auto">
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="text-xl font-bold">Generated Content</h3>
-                            {canCopy && (
-                                <button
-                                    onClick={handleCopy}
-                                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
-                                >
-                                    Copy
-                                </button>
-                            )}
+                            {/* Always show the copy button */}
+                            <button
+                                onClick={handleCopy}
+                                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
+                            >
+                                Copy
+                            </button>
                         </div>
                         <div className="border p-4 bg-gray-100 rounded-md flex-1 overflow-y-auto">
                             <div
