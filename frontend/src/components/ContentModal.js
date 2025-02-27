@@ -5,10 +5,9 @@ import React, { useEffect, useState } from "react";
 import DOMPurify from "dompurify";
 
 export default function ContentModal({ isOpen, onClose, content }) {
-    // Render nothing if modal isn’t open or there’s no content
     if (!isOpen || !content) return null;
 
-    // Attempt to parse configuration data
+    // Parse configuration if provided
     let configObj = {};
     try {
         configObj =
@@ -19,7 +18,7 @@ export default function ContentModal({ isOpen, onClose, content }) {
         console.error("Error parsing config:", e);
     }
 
-    // Optional: set a flag if the Clipboard API is available
+    // Check if Clipboard API is available
     const [canCopy, setCanCopy] = useState(false);
     useEffect(() => {
         if (typeof window !== "undefined" && navigator.clipboard) {
@@ -27,36 +26,65 @@ export default function ContentModal({ isOpen, onClose, content }) {
         }
     }, []);
 
-    // Helper to copy generated content with rich text formatting
+    // Fallback function using document.execCommand
+    const fallbackCopyHtmlToClipboard = (html) => {
+        const tempElement = document.createElement("div");
+        // Hide the element off-screen
+        tempElement.style.position = "absolute";
+        tempElement.style.left = "-9999px";
+        tempElement.style.top = "0";
+        tempElement.innerHTML = html;
+        // Make it editable so we can select its content
+        tempElement.contentEditable = true;
+        document.body.appendChild(tempElement);
+
+        const range = document.createRange();
+        range.selectNodeContents(tempElement);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        try {
+            const successful = document.execCommand("copy");
+            if (successful) {
+                alert("Generated content copied with fallback!");
+            } else {
+                alert("Fallback copy failed.");
+            }
+        } catch (err) {
+            console.error("Fallback: Unable to copy", err);
+        }
+
+        document.body.removeChild(tempElement);
+    };
+
+    // Handle copying rich HTML content
     const handleCopy = async () => {
-        if (typeof window === "undefined" || !navigator.clipboard) {
+        if (typeof window === "undefined") {
             alert("Clipboard API is not available in this environment.");
             return;
         }
-        try {
-            await navigator.clipboard.write([
-                new ClipboardItem({
-                    "text/html": new Blob([content.generated_content], {
-                        type: "text/html",
-                    }),
-                    "text/plain": new Blob(
-                        [content.generated_content.replace(/<[^>]+>/g, "")],
-                        { type: "text/plain" }
-                    ),
-                }),
-            ]);
-            alert("Generated content copied with rich text formatting!");
-        } catch (err) {
-            console.error("Failed to copy with formatting:", err);
-            // Fallback: copy plain text only if rich text copying fails
+        const htmlContent = content.generated_content;
+        if (navigator.clipboard && navigator.clipboard.write) {
             try {
-                await navigator.clipboard.writeText(
-                    content.generated_content.replace(/<[^>]+>/g, "")
-                );
-                alert("Generated content copied as plain text.");
-            } catch (fallbackErr) {
-                console.error("Fallback copy failed:", fallbackErr);
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        "text/html": new Blob([htmlContent], { type: "text/html" }),
+                        "text/plain": new Blob(
+                            [htmlContent.replace(/<[^>]+>/g, "")],
+                            { type: "text/plain" }
+                        )
+                    })
+                ]);
+                alert("Generated content copied with rich text formatting!");
+            } catch (err) {
+                console.error("Clipboard API write failed:", err);
+                // Fallback to execCommand if Clipboard API fails
+                fallbackCopyHtmlToClipboard(htmlContent);
             }
+        } else {
+            // Clipboard API not available, use fallback
+            fallbackCopyHtmlToClipboard(htmlContent);
         }
     };
 
@@ -112,7 +140,7 @@ export default function ContentModal({ isOpen, onClose, content }) {
                             <div
                                 className="generated-content"
                                 dangerouslySetInnerHTML={{
-                                    __html: DOMPurify.sanitize(content.generated_content),
+                                    __html: DOMPurify.sanitize(content.generated_content)
                                 }}
                             />
                         </div>
