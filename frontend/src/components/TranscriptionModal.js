@@ -16,7 +16,7 @@ export default function TranscriptionModal({
     if (!isOpen || !transcription) return null;
 
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    const audioSrc = transcription.video_url.startsWith('http')
+    const audioSrc = transcription.video_url.startsWith("http")
         ? transcription.video_url
         : `${apiBaseUrl}${transcription.video_url}`;
     const { addJob, updateJobStatus } = useJobs();
@@ -41,7 +41,15 @@ export default function TranscriptionModal({
         "Kepadatan Informasi": ["Ringkas", "Sedang", "Lengkap", "Mendetail"],
         "Sentimen Terhadap Objek Berita": ["Netral", "Positif", "Negatif"],
         "Gaya Penyampaian": ["Langsung", "Naratif", "Analitis", "Deskriptif"],
-        "Format Output": ["Artikel", "Berita", "Esai", "Opini", "Caption Instagram", "Caption Facebook", "Tweet/Cuitan"],
+        "Format Output": [
+            "Artikel",
+            "Berita",
+            "Esai",
+            "Opini",
+            "Caption Instagram",
+            "Caption Facebook",
+            "Tweet/Cuitan",
+        ],
         "Gaya Kutipan": ["Langsung", "Tidak Langsung", "Campuran"],
         "Pilihan Bahasa & Dialek": ["Baku", "Non-Baku", "Daerah", "Gaul"],
         "Penyuntingan Otomatis": ["Tanpa Sensor", "Disesuaikan", "Sensor Ketat"],
@@ -51,7 +59,6 @@ export default function TranscriptionModal({
         setSelectedOptions({ ...selectedOptions, [e.target.name]: e.target.value });
     };
 
-    // src/components/TranscriptionModal.js (partial update)
     const handleGenerateContent = async () => {
         setLoading(true);
         setGeneratedContent("");
@@ -74,9 +81,9 @@ export default function TranscriptionModal({
 
         try {
             updateJobStatus({ ...job, status: "processing" });
-
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
-            const response = await axios.post(
+            const API_BASE_URL =
+                process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
+            await axios.post(
                 `${API_BASE_URL}/generate/`,
                 {
                     job_id: jobId,
@@ -95,10 +102,7 @@ export default function TranscriptionModal({
                 },
                 { withCredentials: true }
             );
-
-            // No article content returned immediately; rely on polling
-            console.log("Content generation started:", response.data);
-            // Don’t setGeneratedContent here; wait for polling to update status
+            // Rely on polling to update generatedContent
         } catch (error) {
             console.error("Error starting content generation:", error);
             updateJobStatus({ ...job, status: "failed" });
@@ -112,24 +116,19 @@ export default function TranscriptionModal({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col">
                 <div
-                    className={`flex flex-grow transition-all duration-300 ${step === 1
-                        ? "grid-cols-1"
-                        : step === 2
-                            ? "grid-cols-2"
-                            : "grid-cols-3"
+                    className={`flex flex-grow transition-all duration-300 ${step === 1 ? "grid-cols-1" : step === 2 ? "grid-cols-2" : "grid-cols-3"
                         } grid gap-4 overflow-hidden`}
                 >
                     <div className="p-4 overflow-y-auto">
                         <h2 className="text-2xl font-bold">
                             {transcription.title || "Transcription Details"}
                         </h2>
-                        <p className="text-sm text-gray-600">
-                            Source: {transcription.source}
-                        </p>
+                        <p className="text-sm text-gray-600">Source: {transcription.source}</p>
                         {transcription.source === "YouTube" ? (
                             <iframe
                                 className="aspect-video w-full h-auto my-2"
-                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get("v")}`}
+                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get("v")
+                                    }`}
                                 allowFullScreen
                             ></iframe>
                         ) : (
@@ -138,9 +137,21 @@ export default function TranscriptionModal({
                                 Your browser does not support the audio element.
                             </audio>
                         )}
-                        <p className="text-gray-800 whitespace-pre-wrap">
-                            {transcription.transcript}
-                        </p>
+                        {/* Transcription text with copy button */}
+                        <div>
+                            <p className="text-gray-800 whitespace-pre-wrap">
+                                {transcription.transcript}
+                            </p>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(transcription.transcript);
+                                    alert("Transcription copied to clipboard!");
+                                }}
+                                className="mt-2 bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded"
+                            >
+                                Copy Transcription
+                            </button>
+                        </div>
                         {step === 1 && (
                             <button
                                 onClick={() => setStep(2)}
@@ -155,9 +166,7 @@ export default function TranscriptionModal({
                             <h3 className="text-xl font-bold">Generate Content</h3>
                             {Object.keys(selectedOptions).map((key) => (
                                 <div key={key} className="mb-2">
-                                    <label className="block font-semibold">
-                                        {key}:
-                                    </label>
+                                    <label className="block font-semibold">{key}:</label>
                                     <select
                                         name={key}
                                         value={selectedOptions[key]}
@@ -173,9 +182,7 @@ export default function TranscriptionModal({
                                 </div>
                             ))}
                             <div className="mb-2">
-                                <label className="block font-semibold">
-                                    Catatan Tambahan:
-                                </label>
+                                <label className="block font-semibold">Catatan Tambahan:</label>
                                 <textarea
                                     value={additionalNotes}
                                     onChange={(e) => setAdditionalNotes(e.target.value)}
