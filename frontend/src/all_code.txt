@@ -623,7 +623,7 @@ import DOMPurify from "dompurify";
 export default function ContentModal({ isOpen, onClose, content }) {
     if (!isOpen || !content) return null;
 
-    // Attempt to parse the config if it comes in as a string:
+    // Attempt to parse configuration from content
     let configObj = {};
     try {
         configObj =
@@ -634,32 +634,63 @@ export default function ContentModal({ isOpen, onClose, content }) {
         console.error("Error parsing config:", e);
     }
 
-    // Helper to copy generated content with rich text formatting
-    const handleCopy = async () => {
+    // Fallback function using document.execCommand to copy HTML
+    const fallbackCopyHtmlToClipboard = (html) => {
+        const tempElement = document.createElement("div");
+        tempElement.style.position = "absolute";
+        tempElement.style.left = "-9999px";
+        tempElement.style.top = "0";
+        tempElement.innerHTML = html;
+        tempElement.contentEditable = true;
+        document.body.appendChild(tempElement);
+
+        const range = document.createRange();
+        range.selectNodeContents(tempElement);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+
         try {
-            await navigator.clipboard.write([
-                new ClipboardItem({
-                    "text/html": new Blob([content.generated_content], {
-                        type: "text/html",
-                    }),
-                    "text/plain": new Blob(
-                        [content.generated_content.replace(/<[^>]+>/g, "")],
-                        { type: "text/plain" }
-                    ),
-                }),
-            ]);
-            alert("Generated content copied with rich text formatting!");
-        } catch (err) {
-            console.error("Failed to copy with formatting:", err);
-            // Fallback: copy plain text only if rich text copying fails
-            try {
-                navigator.clipboard.writeText(
-                    content.generated_content.replace(/<[^>]+>/g, "")
-                );
-                alert("Generated content copied as plain text.");
-            } catch (fallbackErr) {
-                console.error("Fallback copy failed:", fallbackErr);
+            const successful = document.execCommand("copy");
+            if (successful) {
+                alert("Generated content copied using fallback!");
+            } else {
+                alert("Fallback copy failed.");
             }
+        } catch (err) {
+            console.error("Fallback: Unable to copy", err);
+        }
+        document.body.removeChild(tempElement);
+    };
+
+    // Function to handle copying the generated content
+    const handleCopy = async () => {
+        const htmlContent = content.generated_content;
+        // Check if running in a browser
+        if (typeof window === "undefined") {
+            alert("Clipboard API is not available in this environment.");
+            return;
+        }
+        if (navigator.clipboard && navigator.clipboard.write) {
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        "text/html": new Blob([htmlContent], { type: "text/html" }),
+                        "text/plain": new Blob(
+                            [htmlContent.replace(/<[^>]+>/g, "")],
+                            { type: "text/plain" }
+                        )
+                    })
+                ]);
+                alert("Generated content copied with rich text formatting!");
+            } catch (err) {
+                console.error("Clipboard API write failed:", err);
+                // Use fallback if Clipboard API fails (e.g. on HTTP)
+                fallbackCopyHtmlToClipboard(htmlContent);
+            }
+        } else {
+            // Clipboard API not available; use fallback
+            fallbackCopyHtmlToClipboard(htmlContent);
         }
     };
 
@@ -668,7 +699,7 @@ export default function ContentModal({ isOpen, onClose, content }) {
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col">
                 <h2 className="text-xl font-bold mb-4">Generated Content</h2>
 
-                {/* Two-column layout (30% : 70%) with flexible, scrollable columns */}
+                {/* Two-column layout (30% : 70%) */}
                 <div className="flex-1 grid grid-cols-[30%,70%] gap-4 overflow-hidden">
                     {/* Column 1: Info & Config */}
                     <div className="flex flex-col h-full border-r pr-4 overflow-y-auto">
@@ -702,6 +733,7 @@ export default function ContentModal({ isOpen, onClose, content }) {
                     <div className="flex flex-col h-full overflow-y-auto">
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="text-xl font-bold">Generated Content</h3>
+                            {/* Always show the copy button */}
                             <button
                                 onClick={handleCopy}
                                 className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
@@ -713,14 +745,14 @@ export default function ContentModal({ isOpen, onClose, content }) {
                             <div
                                 className="generated-content"
                                 dangerouslySetInnerHTML={{
-                                    __html: DOMPurify.sanitize(content.generated_content),
+                                    __html: DOMPurify.sanitize(content.generated_content)
                                 }}
                             />
                         </div>
                     </div>
                 </div>
 
-                {/* Close button at the bottom */}
+                {/* Close button */}
                 <div className="mt-4 flex justify-end">
                     <button
                         onClick={onClose}
@@ -741,11 +773,22 @@ import { v4 as uuidv4 } from "uuid";
 import { useJobs } from "../hooks/useJobs";
 import DOMPurify from "dompurify";
 
+// Helper to format seconds into mm:ss
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60)
+        .toString()
+        .padStart(2, "0");
+    const secs = Math.floor(seconds % 60)
+        .toString()
+        .padStart(2, "0");
+    return `${mins}:${secs}`;
+}
+
 export default function TranscriptionModal({
     isOpen,
     onClose,
     transcription,
-    onDone = () => { },
+    onDone = () => { }
 }) {
     if (!isOpen || !transcription) return null;
 
@@ -766,7 +809,7 @@ export default function TranscriptionModal({
         "Format Output": "Artikel",
         "Gaya Kutipan": "Langsung",
         "Pilihan Bahasa & Dialek": "Baku",
-        "Penyuntingan Otomatis": "Tanpa Sensor",
+        "Penyuntingan Otomatis": "Tanpa Sensor"
     });
     const [additionalNotes, setAdditionalNotes] = useState("");
 
@@ -782,11 +825,11 @@ export default function TranscriptionModal({
             "Opini",
             "Caption Instagram",
             "Caption Facebook",
-            "Tweet/Cuitan",
+            "Tweet/Cuitan"
         ],
         "Gaya Kutipan": ["Langsung", "Tidak Langsung", "Campuran"],
         "Pilihan Bahasa & Dialek": ["Baku", "Non-Baku", "Daerah", "Gaul"],
-        "Penyuntingan Otomatis": ["Tanpa Sensor", "Disesuaikan", "Sensor Ketat"],
+        "Penyuntingan Otomatis": ["Tanpa Sensor", "Disesuaikan", "Sensor Ketat"]
     };
 
     const handleOptionChange = (e) => {
@@ -800,7 +843,7 @@ export default function TranscriptionModal({
 
         const combinedConfig = {
             ...selectedOptions,
-            "Catatan Tambahan": additionalNotes,
+            "Catatan Tambahan": additionalNotes
         };
 
         const jobId = uuidv4();
@@ -808,7 +851,7 @@ export default function TranscriptionModal({
             job_id: jobId,
             status: "pending",
             type: "content-generation",
-            title: `Content: ${transcription.title || "Untitled"}`,
+            title: `Content: ${transcription.title || "Untitled"}`
         };
 
         addJob(job);
@@ -832,11 +875,11 @@ export default function TranscriptionModal({
                     bahasa: selectedOptions["Pilihan Bahasa & Dialek"],
                     penyuntingan: selectedOptions["Penyuntingan Otomatis"],
                     catatan_tambahan: additionalNotes,
-                    config: combinedConfig,
+                    config: combinedConfig
                 },
                 { withCredentials: true }
             );
-            // Rely on polling to update generatedContent
+            // (Assume polling updates generatedContent)
         } catch (error) {
             console.error("Error starting content generation:", error);
             updateJobStatus({ ...job, status: "failed" });
@@ -846,13 +889,76 @@ export default function TranscriptionModal({
         }
     };
 
+    // Fallback function: use a temporary textarea to copy text
+    const fallbackCopyTextToClipboard = (text) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            const successful = document.execCommand("copy");
+            if (successful) {
+                alert("Transcription copied to clipboard using fallback!");
+            } else {
+                alert("Fallback copy failed.");
+            }
+        } catch (err) {
+            console.error("Fallback: Unable to copy", err);
+        }
+        document.body.removeChild(textArea);
+    };
+
+    // Handler to copy the full transcription text
+    const handleCopyTranscription = () => {
+        const text = transcription.transcript;
+        if (
+            typeof window !== "undefined" &&
+            navigator.clipboard &&
+            typeof navigator.clipboard.writeText === "function"
+        ) {
+            navigator.clipboard
+                .writeText(text)
+                .then(() => alert("Transcription copied to clipboard!"))
+                .catch((err) => {
+                    console.error("Clipboard API writeText failed:", err);
+                    fallbackCopyTextToClipboard(text);
+                });
+        } else {
+            fallbackCopyTextToClipboard(text);
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // NEW: Parse segments and display with time codes
+    // ─────────────────────────────────────────────────────────────
+    let segments = [];
+    try {
+        if (transcription.segments) {
+            // If the stored JSON has extra escape characters, clean them up:
+            const cleaned = transcription.segments.replace(/""/g, '"');
+            segments = JSON.parse(cleaned);
+        }
+    } catch (err) {
+        console.error("Error parsing transcription.segments:", err);
+    }
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col overflow-y-auto">
                 <div
-                    className={`flex flex-grow transition-all duration-300 ${step === 1 ? "grid-cols-1" : step === 2 ? "grid-cols-2" : "grid-cols-3"
+                    className={`flex flex-grow transition-all duration-300 ${step === 1
+                            ? "grid-cols-1"
+                            : step === 2
+                                ? "grid-cols-2"
+                                : "grid-cols-3"
                         } grid gap-4 overflow-hidden`}
                 >
+                    {/* Left column: Transcript and segments */}
                     <div className="p-4 overflow-y-auto">
                         <h2 className="text-2xl font-bold">
                             {transcription.title || "Transcription Details"}
@@ -861,8 +967,9 @@ export default function TranscriptionModal({
                         {transcription.source === "YouTube" ? (
                             <iframe
                                 className="aspect-video w-full h-auto my-2"
-                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get("v")
-                                    }`}
+                                src={`https://www.youtube.com/embed/${new URL(
+                                    transcription.video_url
+                                ).searchParams.get("v")}`}
                                 allowFullScreen
                             ></iframe>
                         ) : (
@@ -871,21 +978,20 @@ export default function TranscriptionModal({
                                 Your browser does not support the audio element.
                             </audio>
                         )}
-                        {/* Transcription text with copy button */}
+                        {/* Full transcript with copy button */}
                         <div>
                             <p className="text-gray-800 whitespace-pre-wrap">
                                 {transcription.transcript}
                             </p>
                             <button
-                                onClick={() => {
-                                    navigator.clipboard.writeText(transcription.transcript);
-                                    alert("Transcription copied to clipboard!");
-                                }}
+                                onClick={handleCopyTranscription}
                                 className="mt-2 bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded"
                             >
                                 Copy Transcription
                             </button>
                         </div>
+
+                        {/* "Generate Content" button for step 1 */}
                         {step === 1 && (
                             <button
                                 onClick={() => setStep(2)}
@@ -894,10 +1000,40 @@ export default function TranscriptionModal({
                                 Generate Content
                             </button>
                         )}
+
+                        {/* Segmented transcript display */}
+                        {segments.length > 0 && (
+                            <div className="mt-6">
+                                <h3 className="text-lg font-semibold mb-2">
+                                    Segmented Transcript
+                                </h3>
+                                <ul className="space-y-1 text-sm">
+                                    {segments.map((seg, idx) => {
+                                        // Format the start time
+                                        const mins = Math.floor(seg.start / 60)
+                                            .toString()
+                                            .padStart(2, "0");
+                                        const secs = Math.floor(seg.start % 60)
+                                            .toString()
+                                            .padStart(2, "0");
+                                        return (
+                                            <li key={idx} className="text-gray-700">
+                                                <span className="font-mono text-gray-500">
+                                                    [{mins}:{secs}]{" "}
+                                                </span>
+                                                {seg.text}
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            </div>
+                        )}
                     </div>
+
+                    {/* Middle column: Generation configuration */}
                     {step > 1 && (
                         <div className="p-4 overflow-y-auto">
-                            <h3 className="text-xl font-bold">Generate Content</h3>
+                            <h3 className="text-xl font-bold mb-2">Generate Content</h3>
                             {Object.keys(selectedOptions).map((key) => (
                                 <div key={key} className="mb-2">
                                     <label className="block font-semibold">{key}:</label>
@@ -934,6 +1070,8 @@ export default function TranscriptionModal({
                             </button>
                         </div>
                     )}
+
+                    {/* Right column: Generated content (if any) */}
                     {step === 3 && (
                         <div className="p-4 overflow-y-auto">
                             <h3 className="text-xl font-bold">Generated Content</h3>
@@ -941,13 +1079,15 @@ export default function TranscriptionModal({
                                 <div
                                     className="generated-content"
                                     dangerouslySetInnerHTML={{
-                                        __html: DOMPurify.sanitize(generatedContent),
+                                        __html: DOMPurify.sanitize(generatedContent)
                                     }}
                                 />
                             </div>
                         </div>
                     )}
                 </div>
+
+                {/* Footer buttons */}
                 <div className="flex justify-between mt-4">
                     {step > 1 && (
                         <button

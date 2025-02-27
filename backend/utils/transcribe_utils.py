@@ -10,36 +10,18 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MAX_SIZE = 25 * 1024 * 1024  # 25 MB in bytes
+MAX_SIZE = 25 * 1024 * 1024  # 25 MB
 
 
-def transcribe_audio_with_whisper(audio_file_path: str) -> str:
-    file_size = os.path.getsize(audio_file_path)
-    logger.info(
-        f"Starting transcription for {audio_file_path} (size: {file_size} bytes)")
-    if file_size <= MAX_SIZE:
-        return transcribe_single_file(audio_file_path)
-    else:
-        chunk_paths = split_audio_file(audio_file_path, segment_duration=300)
-        transcripts = []
-        for chunk in chunk_paths:
-            transcript = transcribe_single_file(chunk)
-            transcripts.append(transcript)
-        chunk_dir = os.path.dirname(chunk_paths[0])
-        shutil.rmtree(chunk_dir, ignore_errors=True)
-        logger.info(
-            f"Completed transcription for {audio_file_path} with {len(chunk_paths)} chunks")
-        return "\n".join(transcripts)
-
-
-def transcribe_single_file(audio_file_path: str) -> str:
+def transcribe_single_file(audio_file_path: str) -> dict:
     api_key = settings.OPENAI_API_KEY
     url = "https://api.openai.com/v1/audio/transcriptions"
     headers = {"Authorization": f"Bearer {api_key}"}
-    data = {"model": "whisper-1"}
+    data = {"model": "whisper-1", "response_format": "verbose_json"}
     with open(audio_file_path, "rb") as f:
         files = {"file": (os.path.basename(audio_file_path), f, "audio/mpeg")}
-        logger.info(f"Sending {audio_file_path} to Whisper API")
+        logger.info(
+            f"Sending {audio_file_path} to Whisper API with verbose_json")
         response = requests.post(url, headers=headers, data=data, files=files)
     if response.status_code != 200:
         logger.error(
@@ -47,8 +29,26 @@ def transcribe_single_file(audio_file_path: str) -> str:
         raise ValueError(
             f"Whisper API error {response.status_code}: {response.text}")
     result = response.json()
-    logger.info(f"Transcription completed for {audio_file_path}")
-    return result.get("text", "")
+    # result now includes "text" and "segments"
+    return result
+
+
+def transcribe_audio_with_whisper(audio_file_path: str) -> dict:
+    file_size = os.path.getsize(audio_file_path)
+    if file_size <= MAX_SIZE:
+        return transcribe_single_file(audio_file_path)
+    else:
+        chunk_paths = split_audio_file(audio_file_path, segment_duration=300)
+        transcripts = []
+        segments_all = []
+        for chunk in chunk_paths:
+            result = transcribe_single_file(chunk)
+            transcripts.append(result.get("text", ""))
+            if "segments" in result:
+                segments_all.extend(result["segments"])
+        chunk_dir = os.path.dirname(chunk_paths[0])
+        shutil.rmtree(chunk_dir, ignore_errors=True)
+        return {"text": "\n".join(transcripts), "segments": segments_all}
 
 
 def split_audio_file(audio_file_path: str, segment_duration: int) -> List[str]:
@@ -68,9 +68,7 @@ def split_audio_file(audio_file_path: str, segment_duration: int) -> List[str]:
     ]
     logger.info(f"Splitting {audio_file_path} into chunks")
     try:
-        result = subprocess.run(command, check=True,
-                                stderr=subprocess.PIPE, text=True)
-        logger.debug(f"FFmpeg output for {audio_file_path}: {result.stderr}")
+        subprocess.run(command, check=True, stderr=subprocess.PIPE, text=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"FFmpeg error splitting {audio_file_path}: {e.stderr}")
         raise RuntimeError(f"FFmpeg failed: {e.stderr}")
