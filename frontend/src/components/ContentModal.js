@@ -1,13 +1,14 @@
 // src/components/ContentModal.js
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import DOMPurify from "dompurify";
 
 export default function ContentModal({ isOpen, onClose, content }) {
+    // Render nothing if modal isn’t open or there’s no content
     if (!isOpen || !content) return null;
 
-    // Attempt to parse the config if it comes in as a string:
+    // Attempt to parse configuration data
     let configObj = {};
     try {
         configObj =
@@ -18,8 +19,20 @@ export default function ContentModal({ isOpen, onClose, content }) {
         console.error("Error parsing config:", e);
     }
 
+    // Optional: set a flag if the Clipboard API is available
+    const [canCopy, setCanCopy] = useState(false);
+    useEffect(() => {
+        if (typeof window !== "undefined" && navigator.clipboard) {
+            setCanCopy(true);
+        }
+    }, []);
+
     // Helper to copy generated content with rich text formatting
     const handleCopy = async () => {
+        if (typeof window === "undefined" || !navigator.clipboard) {
+            alert("Clipboard API is not available in this environment.");
+            return;
+        }
         try {
             await navigator.clipboard.write([
                 new ClipboardItem({
@@ -37,7 +50,7 @@ export default function ContentModal({ isOpen, onClose, content }) {
             console.error("Failed to copy with formatting:", err);
             // Fallback: copy plain text only if rich text copying fails
             try {
-                navigator.clipboard.writeText(
+                await navigator.clipboard.writeText(
                     content.generated_content.replace(/<[^>]+>/g, "")
                 );
                 alert("Generated content copied as plain text.");
@@ -52,7 +65,7 @@ export default function ContentModal({ isOpen, onClose, content }) {
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col">
                 <h2 className="text-xl font-bold mb-4">Generated Content</h2>
 
-                {/* Two-column layout (30% : 70%) with flexible, scrollable columns */}
+                {/* Two-column layout (30% : 70%) */}
                 <div className="flex-1 grid grid-cols-[30%,70%] gap-4 overflow-hidden">
                     {/* Column 1: Info & Config */}
                     <div className="flex flex-col h-full border-r pr-4 overflow-y-auto">
@@ -86,28 +99,14 @@ export default function ContentModal({ isOpen, onClose, content }) {
                     <div className="flex flex-col h-full overflow-y-auto">
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="text-xl font-bold">Generated Content</h3>
-                            <button
-                                onClick={() => {
-                                    if (
-                                        typeof navigator !== "undefined" &&
-                                        navigator.clipboard &&
-                                        typeof navigator.clipboard.writeText === "function"
-                                    ) {
-                                        navigator.clipboard
-                                            .writeText(content.generated_content)
-                                            .then(() => alert("Generated content copied to clipboard!"))
-                                            .catch((err) =>
-                                                console.error("Error copying text to clipboard:", err)
-                                            );
-                                    } else {
-                                        console.error("Clipboard API is not available.");
-                                        alert("Clipboard API is not available in your browser.");
-                                    }
-                                }}
-                                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
-                            >
-                                Copy
-                            </button>
+                            {canCopy && (
+                                <button
+                                    onClick={handleCopy}
+                                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
+                                >
+                                    Copy
+                                </button>
+                            )}
                         </div>
                         <div className="border p-4 bg-gray-100 rounded-md flex-1 overflow-y-auto">
                             <div
@@ -120,7 +119,7 @@ export default function ContentModal({ isOpen, onClose, content }) {
                     </div>
                 </div>
 
-                {/* Close button at the bottom */}
+                {/* Close button */}
                 <div className="mt-4 flex justify-end">
                     <button
                         onClick={onClose}

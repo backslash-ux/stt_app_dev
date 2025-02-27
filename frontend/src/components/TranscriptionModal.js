@@ -11,14 +11,15 @@ export default function TranscriptionModal({
     isOpen,
     onClose,
     transcription,
-    onDone = () => { },
+    onDone = () => { }
 }) {
     if (!isOpen || !transcription) return null;
 
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    const audioSrc = transcription.video_url.startsWith("http")
-        ? transcription.video_url
-        : `${apiBaseUrl}${transcription.video_url}`;
+    const audioSrc =
+        transcription.video_url.startsWith("http")
+            ? transcription.video_url
+            : `${apiBaseUrl}${transcription.video_url}`;
     const { addJob, updateJobStatus } = useJobs();
 
     const [step, setStep] = useState(1);
@@ -32,7 +33,7 @@ export default function TranscriptionModal({
         "Format Output": "Artikel",
         "Gaya Kutipan": "Langsung",
         "Pilihan Bahasa & Dialek": "Baku",
-        "Penyuntingan Otomatis": "Tanpa Sensor",
+        "Penyuntingan Otomatis": "Tanpa Sensor"
     });
     const [additionalNotes, setAdditionalNotes] = useState("");
 
@@ -48,11 +49,11 @@ export default function TranscriptionModal({
             "Opini",
             "Caption Instagram",
             "Caption Facebook",
-            "Tweet/Cuitan",
+            "Tweet/Cuitan"
         ],
         "Gaya Kutipan": ["Langsung", "Tidak Langsung", "Campuran"],
         "Pilihan Bahasa & Dialek": ["Baku", "Non-Baku", "Daerah", "Gaul"],
-        "Penyuntingan Otomatis": ["Tanpa Sensor", "Disesuaikan", "Sensor Ketat"],
+        "Penyuntingan Otomatis": ["Tanpa Sensor", "Disesuaikan", "Sensor Ketat"]
     };
 
     const handleOptionChange = (e) => {
@@ -66,7 +67,7 @@ export default function TranscriptionModal({
 
         const combinedConfig = {
             ...selectedOptions,
-            "Catatan Tambahan": additionalNotes,
+            "Catatan Tambahan": additionalNotes
         };
 
         const jobId = uuidv4();
@@ -74,7 +75,7 @@ export default function TranscriptionModal({
             job_id: jobId,
             status: "pending",
             type: "content-generation",
-            title: `Content: ${transcription.title || "Untitled"}`,
+            title: `Content: ${transcription.title || "Untitled"}`
         };
 
         addJob(job);
@@ -98,11 +99,11 @@ export default function TranscriptionModal({
                     bahasa: selectedOptions["Pilihan Bahasa & Dialek"],
                     penyuntingan: selectedOptions["Penyuntingan Otomatis"],
                     catatan_tambahan: additionalNotes,
-                    config: combinedConfig,
+                    config: combinedConfig
                 },
                 { withCredentials: true }
             );
-            // Rely on polling to update generatedContent
+            // (Assume polling updates generatedContent)
         } catch (error) {
             console.error("Error starting content generation:", error);
             updateJobStatus({ ...job, status: "failed" });
@@ -123,7 +124,9 @@ export default function TranscriptionModal({
                         <h2 className="text-2xl font-bold">
                             {transcription.title || "Transcription Details"}
                         </h2>
-                        <p className="text-sm text-gray-600">Source: {transcription.source}</p>
+                        <p className="text-sm text-gray-600">
+                            Source: {transcription.source}
+                        </p>
                         {transcription.source === "YouTube" ? (
                             <iframe
                                 className="aspect-video w-full h-auto my-2"
@@ -145,18 +148,19 @@ export default function TranscriptionModal({
                             <button
                                 onClick={() => {
                                     if (
-                                        typeof navigator !== "undefined" &&
+                                        typeof window !== "undefined" &&
                                         navigator.clipboard &&
                                         typeof navigator.clipboard.writeText === "function"
                                     ) {
                                         navigator.clipboard
                                             .writeText(transcription.transcript)
-                                            .then(() => alert("Transcription copied to clipboard!"))
+                                            .then(() =>
+                                                alert("Transcription copied to clipboard!")
+                                            )
                                             .catch((err) =>
-                                                console.error("Error copying text to clipboard:", err)
+                                                console.error("Error copying text:", err)
                                             );
                                     } else {
-                                        console.error("Clipboard API is not available.");
                                         alert("Clipboard API is not available in your browser.");
                                     }
                                 }}
@@ -195,7 +199,9 @@ export default function TranscriptionModal({
                                 </div>
                             ))}
                             <div className="mb-2">
-                                <label className="block font-semibold">Catatan Tambahan:</label>
+                                <label className="block font-semibold">
+                                    Catatan Tambahan:
+                                </label>
                                 <textarea
                                     value={additionalNotes}
                                     onChange={(e) => setAdditionalNotes(e.target.value)}
