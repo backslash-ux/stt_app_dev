@@ -3,7 +3,7 @@
 import axios from "axios";
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 
-export function ProcessingQueue({ processingQueue }) {
+export function ProcessingQueue({ processingQueue, isLoading }) {  // Add isLoading prop
     useEffect(() => {
         console.log("🟢 ProcessingQueue Updated:", processingQueue);
     }, [processingQueue]);
@@ -18,7 +18,9 @@ export function ProcessingQueue({ processingQueue }) {
         <div>
             <h2 className="text-xl font-bold mb-4">Ongoing Jobs</h2>
             <div className="space-y-3">
-                {sortedJobs.length > 0 ? (
+                {isLoading ? (
+                    <p className="text-gray-500">Fetching ongoing jobs...</p>
+                ) : sortedJobs.length > 0 ? (
                     sortedJobs.map((job) => (
                         <div
                             key={job.job_id}
@@ -51,6 +53,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3
 
 export function JobsProvider({ children }) {
     const [processingQueue, setProcessingQueue] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);  // Add loading state
     const queueRef = useRef(processingQueue);
 
     useEffect(() => {
@@ -59,18 +62,22 @@ export function JobsProvider({ children }) {
 
     const fetchOngoingJobs = async () => {
         try {
+            setIsLoading(true);  // Set loading true before fetch
             const response = await axios.get(`${API_BASE_URL}/jobs/ongoing/`, {
                 withCredentials: true,
             });
+            console.log("Fetched ongoing jobs:", response.data);
             setProcessingQueue(response.data.map(job => ({
                 job_id: job.job_id,
                 status: job.status,
                 created_at: job.created_at,
                 completed_at: job.completed_at,
-                title: `Job ${job.job_id.slice(0, 8)}`, // Placeholder title, adjust as needed
+                title: job.title,
             })));
         } catch (error) {
             console.error("Failed to fetch ongoing jobs:", error);
+        } finally {
+            setIsLoading(false);  // Set loading false after fetch completes
         }
     };
 
@@ -86,7 +93,7 @@ export function JobsProvider({ children }) {
                     ...prev,
                     {
                         ...job,
-                        created_at: new Date().toISOString(),
+                        created_at: job.created_at || new Date().toISOString(),
                     },
                 ];
             }
@@ -154,7 +161,7 @@ export function JobsProvider({ children }) {
     }, [updateJobStatus]);
 
     return (
-        <JobsContext.Provider value={{ processingQueue, addJob, updateJobStatus }}>
+        <JobsContext.Provider value={{ processingQueue, addJob, updateJobStatus, isLoading }}>
             {children}
         </JobsContext.Provider>
     );

@@ -51,6 +51,7 @@ export default function TranscriptionModal({
         setSelectedOptions({ ...selectedOptions, [e.target.name]: e.target.value });
     };
 
+    // src/components/TranscriptionModal.js (partial update)
     const handleGenerateContent = async () => {
         setLoading(true);
         setGeneratedContent("");
@@ -92,14 +93,14 @@ export default function TranscriptionModal({
                     catatan_tambahan: additionalNotes,
                     config: combinedConfig,
                 },
-                { withCredentials: true } // Use cookie auth
+                { withCredentials: true }
             );
 
-            setGeneratedContent(response.data.article);
-            updateJobStatus({ ...job, status: "completed" });
-            if (onDone) onDone();
+            // No article content returned immediately; rely on polling
+            console.log("Content generation started:", response.data);
+            // Don’t setGeneratedContent here; wait for polling to update status
         } catch (error) {
-            console.error("Error generating content:", error);
+            console.error("Error starting content generation:", error);
             updateJobStatus({ ...job, status: "failed" });
             if (onDone) onDone();
         } finally {
