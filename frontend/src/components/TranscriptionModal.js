@@ -113,6 +113,51 @@ export default function TranscriptionModal({
         }
     };
 
+    // Fallback: Create a temporary textarea to copy text
+    const fallbackCopyTextToClipboard = (text) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        // Position off-screen to avoid scrolling
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            const successful = document.execCommand("copy");
+            if (successful) {
+                alert("Transcription copied to clipboard using fallback!");
+            } else {
+                alert("Fallback copy failed.");
+            }
+        } catch (err) {
+            console.error("Fallback: Unable to copy", err);
+        }
+        document.body.removeChild(textArea);
+    };
+
+    // Handler to copy the transcription text
+    const handleCopyTranscription = () => {
+        const text = transcription.transcript;
+        if (
+            typeof window !== "undefined" &&
+            navigator.clipboard &&
+            typeof navigator.clipboard.writeText === "function"
+        ) {
+            navigator.clipboard
+                .writeText(text)
+                .then(() => alert("Transcription copied to clipboard!"))
+                .catch((err) => {
+                    console.error("Clipboard API writeText failed:", err);
+                    fallbackCopyTextToClipboard(text);
+                });
+        } else {
+            fallbackCopyTextToClipboard(text);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col">
@@ -124,14 +169,11 @@ export default function TranscriptionModal({
                         <h2 className="text-2xl font-bold">
                             {transcription.title || "Transcription Details"}
                         </h2>
-                        <p className="text-sm text-gray-600">
-                            Source: {transcription.source}
-                        </p>
+                        <p className="text-sm text-gray-600">Source: {transcription.source}</p>
                         {transcription.source === "YouTube" ? (
                             <iframe
                                 className="aspect-video w-full h-auto my-2"
-                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get("v")
-                                    }`}
+                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get("v")}`}
                                 allowFullScreen
                             ></iframe>
                         ) : (
@@ -146,24 +188,7 @@ export default function TranscriptionModal({
                                 {transcription.transcript}
                             </p>
                             <button
-                                onClick={() => {
-                                    if (
-                                        typeof window !== "undefined" &&
-                                        navigator.clipboard &&
-                                        typeof navigator.clipboard.writeText === "function"
-                                    ) {
-                                        navigator.clipboard
-                                            .writeText(transcription.transcript)
-                                            .then(() =>
-                                                alert("Transcription copied to clipboard!")
-                                            )
-                                            .catch((err) =>
-                                                console.error("Error copying text:", err)
-                                            );
-                                    } else {
-                                        alert("Clipboard API is not available in your browser.");
-                                    }
-                                }}
+                                onClick={handleCopyTranscription}
                                 className="mt-2 bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded"
                             >
                                 Copy Transcription
@@ -199,9 +224,7 @@ export default function TranscriptionModal({
                                 </div>
                             ))}
                             <div className="mb-2">
-                                <label className="block font-semibold">
-                                    Catatan Tambahan:
-                                </label>
+                                <label className="block font-semibold">Catatan Tambahan:</label>
                                 <textarea
                                     value={additionalNotes}
                                     onChange={(e) => setAdditionalNotes(e.target.value)}
@@ -226,7 +249,7 @@ export default function TranscriptionModal({
                                 <div
                                     className="generated-content"
                                     dangerouslySetInnerHTML={{
-                                        __html: DOMPurify.sanitize(generatedContent),
+                                        __html: DOMPurify.sanitize(generatedContent)
                                     }}
                                 />
                             </div>
