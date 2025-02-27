@@ -25,9 +25,8 @@ def get_db():
 
 
 def process_youtube_transcription(youtube_url: str, user_id: int, db: Session, job_id: str):
-    update_job(job_id, "processing")
+    update_job(job_id, "processing", db=db)  # Pass db
     try:
-        # Extract metadata (title) again in the background just to be safe:
         with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
             info = ydl.extract_info(youtube_url, download=False)
             youtube_title = info.get("title") or youtube_url
@@ -44,11 +43,12 @@ def process_youtube_transcription(youtube_url: str, user_id: int, db: Session, j
             title=youtube_title
         )
 
-        update_job(job_id, "completed", transcript=transcription_text)
+        update_job(job_id, "completed",
+                   transcript=transcription_text, db=db)  # Pass db
         print(f"✅ YouTube transcription completed for '{youtube_title}'")
 
     except Exception as e:
-        update_job(job_id, "failed")
+        update_job(job_id, "failed", db=db)  # Pass db
         print(f"❌ Error during YouTube transcription: {e}")
 
 
@@ -63,19 +63,16 @@ async def process_youtube(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Try to extract the YouTube title right away, so we can return it
     try:
         with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
             info = ydl.extract_info(request.youtube_url, download=False)
             youtube_title = info.get("title") or request.youtube_url
     except Exception:
-        # If anything goes wrong, just fall back to the raw URL
         youtube_title = request.youtube_url
 
     job_id = str(uuid.uuid4())
-    create_job(job_id)
+    create_job(job_id, current_user.id, f"YouTube: {youtube_title}", db)
 
-    # Queue the actual transcription in the background
     background_tasks.add_task(
         process_youtube_transcription,
         request.youtube_url,
@@ -84,7 +81,6 @@ async def process_youtube(
         job_id
     )
 
-    # Return the job_id + the extracted title so the frontend can display it
     return {
         "message": "YouTube transcription started!",
         "job_id": job_id,
@@ -93,8 +89,9 @@ async def process_youtube(
 
 
 @router.get("/jobs/{job_id}/status")
-async def get_youtube_job_status(job_id: str):
-    job = get_job(job_id)
+# Add db dependency
+async def get_youtube_job_status(job_id: str, db: Session = Depends(get_db)):
+    job = get_job(job_id, db)  # Pass db
     if not job:
         raise HTTPException(status_code=404, detail="Job ID not found")
     return job

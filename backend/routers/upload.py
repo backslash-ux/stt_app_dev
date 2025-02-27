@@ -1,5 +1,4 @@
 # backend/routers/upload.py
-
 from backend.config import settings
 from backend.utils.job_status import create_job, update_job, get_job
 from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException, Depends
@@ -29,25 +28,21 @@ def get_db():
 
 
 def process_transcription(file_path: str, user_id: int, db_session: Session, job_id: str):
-    update_job(job_id, "processing")
+    update_job(job_id, "processing", db=db_session)
     try:
         transcription_text = transcribe_audio_with_whisper(file_path)
-
         file_title = os.path.basename(file_path)
-        # Updated: Store only the relative path instead of the full host URL
         public_url = f"/uploads/{file_title}"
         create_history_record(db_session, user_id, "Upload",
                               public_url, transcription_text, title=file_title)
-
-        update_job(job_id, "completed", transcription_text)
-
+        update_job(job_id, "completed", transcription_text, db=db_session)
         print(f"✅ Transcription completed for {file_path}")
-
     except Exception as e:
-        update_job(job_id, "failed")
+        update_job(job_id, "failed", db=db_session)
         print(f"❌ Error during transcription: {e}")
 
 
+# backend/routers/upload.py (snippet)
 @router.post("/upload-audio/")
 async def upload_audio(
     background_tasks: BackgroundTasks,
@@ -71,7 +66,9 @@ async def upload_audio(
             shutil.copyfileobj(file.file, buffer)
 
         job_id = str(uuid.uuid4())
-        create_job(job_id)
+        create_job(job_id, current_user.id,
+                   file.filename, db)  # Corrected title
+
         background_tasks.add_task(
             process_transcription, file_path, current_user.id, db, job_id)
 
@@ -79,14 +76,13 @@ async def upload_audio(
             "message": "File uploaded successfully, transcription is processing in the background!",
             "job_id": job_id
         }
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/jobs/{job_id}/status")
-async def get_job_status(job_id: str):
-    job = get_job(job_id)
+async def get_job_status(job_id: str, db: Session = Depends(get_db)):
+    job = get_job(job_id, db)
     if not job:
         raise HTTPException(status_code=404, detail="Job ID not found")
     return job

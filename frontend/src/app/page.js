@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import useAuth from "../hooks/useAuth";
 import useHistory from "../hooks/useHistory";
 import { useJobs } from "../hooks/useJobs";
-
 import TranscribeSection from "../components/TranscribeSection";
 import TranscriptionHistory from "../components/TranscriptionHistory";
 import ContentHistory from "../components/ContentHistory";
@@ -15,7 +14,7 @@ import ProcessingQueue from "../components/ProcessingQueue";
 export default function Home() {
   const user = useAuth();
   const { transcriptionHistory, contentHistory, refreshHistory } = useHistory(user);
-  const { processingQueue } = useJobs();
+  const { processingQueue, isLoading } = useJobs();  // Add isLoading from useJobs
   const router = useRouter();
 
   const [showWarning, setShowWarning] = useState(() => {
@@ -30,7 +29,6 @@ export default function Home() {
     localStorage.setItem("showWarning", "false");
   };
 
-  // Track the previous queue to detect status changes
   const prevQueueRef = useRef([]);
 
   useEffect(() => {
@@ -74,16 +72,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* First Row */}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-        {/* Transcribe Section */}
         <div className="col-span-1 lg:col-span-3 bg-white p-6 rounded-lg shadow h-[28rem] flex items-center">
           <div className="w-full">
             <TranscribeSection />
           </div>
         </div>
 
-        {/* Transcription History */}
         <div className="col-span-1 lg:col-span-5 bg-white p-6 rounded-lg shadow h-[28rem] overflow-y-auto">
           <TranscriptionHistory
             transcriptionHistory={transcriptionHistory}
@@ -91,20 +86,16 @@ export default function Home() {
           />
         </div>
 
-        {/* Ongoing Jobs */}
         <div className="col-span-1 lg:col-span-2 bg-white p-6 rounded-lg shadow h-[28rem] overflow-y-auto">
-          <ProcessingQueue processingQueue={processingQueue} />
+          <ProcessingQueue processingQueue={processingQueue} isLoading={isLoading} />
         </div>
       </div>
 
-      {/* Second Row (60% / 40%) */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-10 gap-6">
-        {/* Content History => 60% width => col-span-6 */}
         <div className="col-span-1 lg:col-span-6 bg-white p-6 rounded-lg shadow h-[28rem] overflow-y-auto">
           <ContentHistory contentHistory={contentHistory} />
         </div>
 
-        {/* User Stats => 40% width => col-span-4 */}
         <div className="col-span-1 lg:col-span-4 bg-white p-6 rounded-lg shadow h-[28rem] overflow-y-auto">
           <StatsOverview
             transcriptionCount={transcriptionHistory.length}
@@ -126,7 +117,6 @@ export default function Home() {
   );
 }
 
-/** Example inline StatsOverview component */
 function StatsOverview({ transcriptionCount, contentCount }) {
   return (
     <div>
