@@ -11,7 +11,7 @@ import DOMPurify from "dompurify";
 function formatTime(seconds) {
     const mins = Math.floor(seconds / 60).toString().padStart(2, "0");
     const secs = Math.floor(seconds % 60).toString().padStart(2, "0");
-    return `${mins}:${secs}`;
+    return `[${mins}:${secs}]`;
 }
 
 // Helper to remove [00:00] style time codes from a text
@@ -20,6 +20,31 @@ function removeTimecodes(text = "") {
         // Remove [mm:ss] plus optional trailing space
         .replace(/\[\d{2}:\d{2}\]\s*/g, "")
         .trim();
+}
+
+/**
+ * Merge chunked segments into one continuous timeline.
+ * Each chunk is assumed to cover `chunkDurationSec` seconds.
+ * Each chunk object should have a "chunkIndex" (0, 1, 2, …)
+ * and a "segments" array where each segment has a "start" (in seconds) and "text".
+ */
+function mergeChunksIntoContinuous(chunks, chunkDurationSec = 300) {
+    let merged = [];
+    chunks.forEach((chunk) => {
+        // Calculate offset: for chunkIndex 0, offset is 0; for chunkIndex 1, offset is 300 seconds, etc.
+        const offset = chunk.chunkIndex * chunkDurationSec;
+        chunk.segments.forEach((seg) => {
+            merged.push({
+                // Adjust start time by adding the offset
+                start: seg.start + offset,
+                // Remove the old timecode markers so we don’t duplicate them
+                text: removeTimecodes(seg.text),
+            });
+        });
+    });
+    // Sort the merged segments by their new continuous start time
+    merged.sort((a, b) => a.start - b.start);
+    return merged;
 }
 
 export default function TranscriptionModal({
@@ -192,7 +217,7 @@ export default function TranscriptionModal({
         }
     };
 
-    // Parse time-coded segments
+    // Parse time-coded segments (if available)
     let segments = [];
     if (transcription.segments) {
         try {
@@ -212,7 +237,17 @@ export default function TranscriptionModal({
         }
     }
 
-    // Remove time codes for the "Raw Transcript" display
+    // If the transcription includes chunks (each chunk covering 5 minutes),
+    // merge them into one continuous array with adjusted timecodes.
+    let continuousSegments = [];
+    if (transcription.chunks && Array.isArray(transcription.chunks)) {
+        continuousSegments = mergeChunksIntoContinuous(transcription.chunks, 300);
+    } else {
+        // Fallback: use the parsed segments as is
+        continuousSegments = segments;
+    }
+
+    // Remove time codes from the raw transcript for display
     const rawTranscript = removeTimecodes(transcription.transcript);
 
     return (
@@ -220,10 +255,10 @@ export default function TranscriptionModal({
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col overflow-y-auto">
                 <div
                     className={`flex flex-grow transition-all duration-300 grid ${step === 1
-                            ? "grid-cols-1"
-                            : step === 2
-                                ? "grid-cols-2"
-                                : "grid-cols-3"
+                        ? "grid-cols-1"
+                        : step === 2
+                            ? "grid-cols-2"
+                            : "grid-cols-3"
                         } gap-4 overflow-hidden`}
                 >
                     {/* Left column: Audio/video, raw transcript, segmented transcript */}
@@ -239,8 +274,7 @@ export default function TranscriptionModal({
                         {transcription.source === "YouTube" ? (
                             <iframe
                                 className="aspect-video w-full h-auto my-2"
-                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get("v")
-                                    }`}
+                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get("v")}`}
                                 allowFullScreen
                             ></iframe>
                         ) : (
@@ -274,14 +308,14 @@ export default function TranscriptionModal({
                             </button>
                         )}
 
-                        {/* Segmented (Time-Coded) Transcript */}
-                        {segments.length > 0 && (
+                        {/* Segmented (Continuous Time-Coded) Transcript */}
+                        {continuousSegments.length > 0 && (
                             <div className="mt-6">
                                 <h3 className="text-lg font-semibold mb-2">
                                     Segmented Transcript
                                 </h3>
                                 <ul className="space-y-2 text-sm border rounded-lg p-2 bg-gray-50">
-                                    {segments.map((seg, idx) => (
+                                    {continuousSegments.map((seg, idx) => (
                                         <li
                                             key={idx}
                                             className="text-gray-700 hover:bg-gray-100 p-1 rounded cursor-pointer"
@@ -294,7 +328,7 @@ export default function TranscriptionModal({
                                             }}
                                         >
                                             <span className="font-mono text-blue-500">
-                                                [{formatTime(seg.start)}]
+                                                {formatTime(seg.start)}
                                             </span>{" "}
                                             {seg.text}
                                         </li>
