@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 import os
 import shutil
 import uuid
+import json
 from backend.utils.transcribe_utils import transcribe_audio_with_whisper
 from backend.utils.dependencies import get_current_user
 from backend.utils.youtube_utils import sanitize_filename
@@ -34,16 +35,30 @@ def process_transcription(file_path: str, user_id: int, db_session: Session, job
             file_path)  # Returns dict
         transcription_text = transcription_result.get(
             "text", "")  # Extract text
+        # Extract segments with time codes
+        segments = transcription_result.get("segments", None)
         file_title = os.path.basename(file_path)
         public_url = f"/uploads/{file_title}"
-        create_history_record(db_session, user_id, "Upload",
-                              public_url, transcription_text, title=file_title)
+
+        # Pass segments as JSON string to create_history_record
+        create_history_record(
+            db_session,
+            user_id,
+            "Upload",
+            public_url,
+            transcription_text,
+            title=file_title,
+            segments=json.dumps(
+                segments) if segments else None  # Store segments
+        )
         update_job(job_id, "completed", transcription_text,
-                   db=db_session)  # Pass string
+                   db=db_session)  # Pass string to jobs table
         print(f"✅ Transcription completed for {file_path}")
     except Exception as e:
+        db_session.rollback()  # Roll back on error
         update_job(job_id, "failed", db=db_session)
         print(f"❌ Error during transcription: {e}")
+        raise
 
 
 @router.post("/upload-audio/")

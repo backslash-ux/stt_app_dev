@@ -812,6 +812,8 @@ export default function TranscriptionModal({
         "Penyuntingan Otomatis": "Tanpa Sensor"
     });
     const [additionalNotes, setAdditionalNotes] = useState("");
+    // console log segments
+    console.log("Raw segments data:", transcription.segments);
 
     const dropdownOptions = {
         "Gaya Bahasa": ["Netral", "Santai", "Formal", "Sastra", "Provokatif"],
@@ -952,10 +954,10 @@ export default function TranscriptionModal({
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col overflow-y-auto">
                 <div
                     className={`flex flex-grow transition-all duration-300 ${step === 1
-                            ? "grid-cols-1"
-                            : step === 2
-                                ? "grid-cols-2"
-                                : "grid-cols-3"
+                        ? "grid-cols-1"
+                        : step === 2
+                            ? "grid-cols-2"
+                            : "grid-cols-3"
                         } grid gap-4 overflow-hidden`}
                 >
                     {/* Left column: Transcript and segments */}
