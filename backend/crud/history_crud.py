@@ -17,7 +17,7 @@ def create_history_record(
         user_id=user_id,
         source=source,
         video_url=video_url,
-        transcript=transcript,
+        transcript=json.dumps(transcript),
         title=title,
         segments=segments      # Store segments (as a JSON string)
     )

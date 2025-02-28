@@ -30,19 +30,22 @@ def get_db():
 def process_transcription(file_path: str, user_id: int, db_session: Session, job_id: str):
     update_job(job_id, "processing", db=db_session)
     try:
-        transcription_text = transcribe_audio_with_whisper(file_path)
+        transcription_result = transcribe_audio_with_whisper(
+            file_path)  # Returns dict
+        transcription_text = transcription_result.get(
+            "text", "")  # Extract text
         file_title = os.path.basename(file_path)
         public_url = f"/uploads/{file_title}"
         create_history_record(db_session, user_id, "Upload",
                               public_url, transcription_text, title=file_title)
-        update_job(job_id, "completed", transcription_text, db=db_session)
+        update_job(job_id, "completed", transcription_text,
+                   db=db_session)  # Pass string
         print(f"✅ Transcription completed for {file_path}")
     except Exception as e:
         update_job(job_id, "failed", db=db_session)
         print(f"❌ Error during transcription: {e}")
 
 
-# backend/routers/upload.py (snippet)
 @router.post("/upload-audio/")
 async def upload_audio(
     background_tasks: BackgroundTasks,
