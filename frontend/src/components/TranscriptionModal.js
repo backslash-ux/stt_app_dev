@@ -190,19 +190,11 @@ export default function TranscriptionModal({
         }
     }
 
-    // Merge segments into a continuous transcript (if available)
-    const fullTranscript = segments.length > 0
-        ? segments
-            .sort((a, b) => a.start - b.start)
-            .map(seg => seg.text)
-            .join("\n")
-        : transcription.transcript;
-
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4">
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col overflow-y-auto">
                 <div
-                    className={`flex-grow transition-all duration-300 grid ${step === 1 ? "grid-cols-1" : step === 2 ? "grid-cols-2" : "grid-cols-3"
+                    className={`flex flex-grow transition-all duration-300 grid ${step === 1 ? "grid-cols-1" : step === 2 ? "grid-cols-2" : "grid-cols-3"
                         } gap-4 overflow-hidden`}
                 >
                     {/* Left column: Transcript and segments */}
@@ -225,7 +217,7 @@ export default function TranscriptionModal({
                         )}
                         <div>
                             <p className="text-gray-800 whitespace-pre-wrap">
-                                {fullTranscript}
+                                {transcription.transcript}
                             </p>
                             <button
                                 onClick={handleCopyTranscription}
