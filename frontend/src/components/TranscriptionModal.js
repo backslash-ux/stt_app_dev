@@ -1,30 +1,37 @@
 // src/components/TranscriptionModal.js
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Added useEffect
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { useJobs } from "../hooks/useJobs";
 import DOMPurify from "dompurify";
 
+// Helper to format seconds into mm:ss
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const secs = Math.floor(seconds % 60).toString().padStart(2, "0");
+    return `${mins}:${secs}`;
+}
+
 export default function TranscriptionModal({
     isOpen,
     onClose,
     transcription,
-    onDone = () => { }
+    onDone = () => { },
 }) {
     if (!isOpen || !transcription) return null;
 
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    const audioSrc =
-        transcription.video_url.startsWith("http")
-            ? transcription.video_url
-            : `${apiBaseUrl}${transcription.video_url}`;
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
+    const audioSrc = transcription.video_url.startsWith("http")
+        ? transcription.video_url
+        : `${apiBaseUrl}${transcription.video_url}`;
     const { addJob, updateJobStatus } = useJobs();
 
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [generatedContent, setGeneratedContent] = useState("");
+    const [job, setJob] = useState(null); // Added job state
     const [selectedOptions, setSelectedOptions] = useState({
         "Gaya Bahasa": "Netral",
         "Kepadatan Informasi": "Ringkas",
@@ -33,7 +40,7 @@ export default function TranscriptionModal({
         "Format Output": "Artikel",
         "Gaya Kutipan": "Langsung",
         "Pilihan Bahasa & Dialek": "Baku",
-        "Penyuntingan Otomatis": "Tanpa Sensor"
+        "Penyuntingan Otomatis": "Tanpa Sensor",
     });
     const [additionalNotes, setAdditionalNotes] = useState("");
 
@@ -49,11 +56,11 @@ export default function TranscriptionModal({
             "Opini",
             "Caption Instagram",
             "Caption Facebook",
-            "Tweet/Cuitan"
+            "Tweet/Cuitan",
         ],
         "Gaya Kutipan": ["Langsung", "Tidak Langsung", "Campuran"],
         "Pilihan Bahasa & Dialek": ["Baku", "Non-Baku", "Daerah", "Gaul"],
-        "Penyuntingan Otomatis": ["Tanpa Sensor", "Disesuaikan", "Sensor Ketat"]
+        "Penyuntingan Otomatis": ["Tanpa Sensor", "Disesuaikan", "Sensor Ketat"],
     };
 
     const handleOptionChange = (e) => {
@@ -65,25 +72,20 @@ export default function TranscriptionModal({
         setGeneratedContent("");
         setStep(3);
 
-        const combinedConfig = {
-            ...selectedOptions,
-            "Catatan Tambahan": additionalNotes
-        };
-
+        const combinedConfig = { ...selectedOptions, "Catatan Tambahan": additionalNotes };
         const jobId = uuidv4();
-        const job = {
+        const newJob = {
             job_id: jobId,
             status: "pending",
             type: "content-generation",
-            title: `Content: ${transcription.title || "Untitled"}`
+            title: `Content: ${transcription.title || "Untitled"}`,
         };
-
-        addJob(job);
+        setJob(newJob); // Set the job state
+        addJob(newJob);
 
         try {
-            updateJobStatus({ ...job, status: "processing" });
-            const API_BASE_URL =
-                process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
+            updateJobStatus({ ...newJob, status: "processing" });
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
             await axios.post(
                 `${API_BASE_URL}/generate/`,
                 {
@@ -99,53 +101,69 @@ export default function TranscriptionModal({
                     bahasa: selectedOptions["Pilihan Bahasa & Dialek"],
                     penyuntingan: selectedOptions["Penyuntingan Otomatis"],
                     catatan_tambahan: additionalNotes,
-                    config: combinedConfig
+                    config: combinedConfig,
                 },
                 { withCredentials: true }
             );
-            // (Assume polling updates generatedContent)
+            // Since this is a background task, polling will handle the completion
         } catch (error) {
             console.error("Error starting content generation:", error);
-            updateJobStatus({ ...job, status: "failed" });
-            if (onDone) onDone();
-        } finally {
+            updateJobStatus({ ...newJob, status: "failed" });
             setLoading(false);
+            if (onDone) onDone();
         }
     };
 
-    // Fallback: Create a temporary textarea to copy text
+    // Polling for job status
+    useEffect(() => {
+        if (step !== 3 || !loading || !job) return;
+
+        const pollJobStatus = async () => {
+            try {
+                const response = await axios.get(
+                    `${apiBaseUrl}/jobs/${job.job_id}/status`,
+                    { withCredentials: true }
+                );
+                const { status, transcript } = response.data;
+                updateJobStatus({ job_id: job.job_id, status });
+
+                if (status === "completed" && transcript) {
+                    setGeneratedContent(transcript);
+                    setLoading(false);
+                    if (onDone) onDone();
+                } else if (status === "failed") {
+                    setGeneratedContent("Failed to generate content.");
+                    setLoading(false);
+                    if (onDone) onDone();
+                }
+            } catch (error) {
+                console.error("Error polling job status:", error);
+            }
+        };
+
+        const intervalId = setInterval(pollJobStatus, 2000);
+        return () => clearInterval(intervalId);
+    }, [step, loading, job, updateJobStatus, onDone, apiBaseUrl]);
+
     const fallbackCopyTextToClipboard = (text) => {
         const textArea = document.createElement("textarea");
         textArea.value = text;
-        // Position off-screen to avoid scrolling
-        textArea.style.top = "0";
-        textArea.style.left = "0";
         textArea.style.position = "fixed";
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-
         try {
-            const successful = document.execCommand("copy");
-            if (successful) {
-                alert("Transcription copied to clipboard using fallback!");
-            } else {
-                alert("Fallback copy failed.");
-            }
+            document.execCommand("copy");
+            alert("Transcription copied to clipboard using fallback!");
         } catch (err) {
             console.error("Fallback: Unable to copy", err);
         }
         document.body.removeChild(textArea);
     };
 
-    // Handler to copy the transcription text
     const handleCopyTranscription = () => {
         const text = transcription.transcript;
-        if (
-            typeof window !== "undefined" &&
-            navigator.clipboard &&
-            typeof navigator.clipboard.writeText === "function"
-        ) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard
                 .writeText(text)
                 .then(() => alert("Transcription copied to clipboard!"))
@@ -158,13 +176,28 @@ export default function TranscriptionModal({
         }
     };
 
+    let segments = [];
+    if (transcription.segments) {
+        try {
+            segments = JSON.parse(transcription.segments);
+            if (!Array.isArray(segments)) {
+                console.warn("Segments is not an array:", segments);
+                segments = [];
+            }
+        } catch (err) {
+            console.error("Error parsing transcription.segments:", err, "Raw data:", transcription.segments);
+            segments = [];
+        }
+    }
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col overflow-y-auto">
                 <div
-                    className={`flex flex-grow transition-all duration-300 ${step === 1 ? "grid-cols-1" : step === 2 ? "grid-cols-2" : "grid-cols-3"
-                        } grid gap-4 overflow-hidden`}
+                    className={`flex flex-grow transition-all duration-300 grid ${step === 1 ? "grid-cols-1" : step === 2 ? "grid-cols-2" : "grid-cols-3"
+                        } gap-4 overflow-hidden`}
                 >
+                    {/* Left column: Transcript and segments */}
                     <div className="p-4 overflow-y-auto">
                         <h2 className="text-2xl font-bold">
                             {transcription.title || "Transcription Details"}
@@ -182,7 +215,6 @@ export default function TranscriptionModal({
                                 Your browser does not support the audio element.
                             </audio>
                         )}
-                        {/* Transcription text with copy button */}
                         <div>
                             <p className="text-gray-800 whitespace-pre-wrap">
                                 {transcription.transcript}
@@ -194,6 +226,7 @@ export default function TranscriptionModal({
                                 Copy Transcription
                             </button>
                         </div>
+
                         {step === 1 && (
                             <button
                                 onClick={() => setStep(2)}
@@ -202,10 +235,38 @@ export default function TranscriptionModal({
                                 Generate Content
                             </button>
                         )}
+
+                        {segments.length > 0 && (
+                            <div className="mt-6">
+                                <h3 className="text-lg font-semibold mb-2">Segmented Transcript</h3>
+                                <ul className="space-y-2 text-sm border rounded-lg p-2 bg-gray-50">
+                                    {segments.map((seg, idx) => (
+                                        <li
+                                            key={idx}
+                                            className="text-gray-700 hover:bg-gray-100 p-1 rounded cursor-pointer"
+                                            onClick={() => {
+                                                const audio = document.querySelector("audio");
+                                                if (audio && seg.start !== undefined) {
+                                                    audio.currentTime = seg.start;
+                                                    audio.play();
+                                                }
+                                            }}
+                                        >
+                                            <span className="font-mono text-blue-500">
+                                                [{formatTime(seg.start)}]
+                                            </span>{" "}
+                                            {seg.text}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                     </div>
+
+                    {/* Middle column: Generation configuration */}
                     {step > 1 && (
                         <div className="p-4 overflow-y-auto">
-                            <h3 className="text-xl font-bold">Generate Content</h3>
+                            <h3 className="text-xl font-bold mb-2">Generate Content</h3>
                             {Object.keys(selectedOptions).map((key) => (
                                 <div key={key} className="mb-2">
                                     <label className="block font-semibold">{key}:</label>
@@ -242,6 +303,8 @@ export default function TranscriptionModal({
                             </button>
                         </div>
                     )}
+
+                    {/* Right column: Generated content */}
                     {step === 3 && (
                         <div className="p-4 overflow-y-auto">
                             <h3 className="text-xl font-bold">Generated Content</h3>
@@ -249,13 +312,14 @@ export default function TranscriptionModal({
                                 <div
                                     className="generated-content"
                                     dangerouslySetInnerHTML={{
-                                        __html: DOMPurify.sanitize(generatedContent)
+                                        __html: DOMPurify.sanitize(generatedContent || "Content generation in progress..."),
                                     }}
                                 />
                             </div>
                         </div>
                     )}
                 </div>
+
                 <div className="flex justify-between mt-4">
                     {step > 1 && (
                         <button

@@ -1,0 +1,11 @@
+[0;1;31m●[0m uvicorn.service - Uvicorn FastAPI Service
+     Loaded: loaded (/etc/systemd/system/uvicorn.service; enabled; vendor preset: enabled)
+     Active: [0;1;31mfailed[0m (Result: exit-code) since Fri 2025-02-21 01:49:50 UTC; 10s ago
+    Process: 10588 ExecStart=/usr/bin/env uvicorn backend.main:app --host 0.0.0.0 --port 3000 --reload [0;1;31m(code=exited, status=127)[0m
+   Main PID: 10588 (code=exited, status=127)
+
+Feb 21 01:49:50 acts systemd[1]: uvicorn.service: Scheduled restart job, restart counter is at 5.
+Feb 21 01:49:50 acts systemd[1]: Stopped Uvicorn FastAPI Service.
+Feb 21 01:49:50 acts systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185muvicorn.service: Start request repeated too quickly.[0m
+Feb 21 01:49:50 acts systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185muvicorn.service: Failed with result 'exit-code'.[0m
+Feb 21 01:49:50 acts systemd[1]: [0;1;31m[0;1;39m[0;1;31mFailed to start Uvicorn FastAPI Service.[0m

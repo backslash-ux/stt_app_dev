@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import uuid
 import yt_dlp
+import json
 from backend.utils.youtube_utils import download_youtube_audio
 from backend.utils.job_status import create_job, update_job, get_job
 from backend.utils.transcribe_utils import transcribe_audio_with_whisper
@@ -25,14 +26,16 @@ def get_db():
 
 
 def process_youtube_transcription(youtube_url: str, user_id: int, db: Session, job_id: str):
-    update_job(job_id, "processing", db=db)  # Pass db
+    update_job(job_id, "processing", db=db)
     try:
         with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
             info = ydl.extract_info(youtube_url, download=False)
             youtube_title = info.get("title") or youtube_url
 
         file_path = download_youtube_audio(youtube_url)
-        transcription_text = transcribe_audio_with_whisper(file_path)
+        result = transcribe_audio_with_whisper(file_path)
+        transcription_text = result.get("text", "")
+        segments = result.get("segments", None)
 
         create_history_record(
             db,
@@ -40,15 +43,15 @@ def process_youtube_transcription(youtube_url: str, user_id: int, db: Session, j
             "YouTube",
             youtube_url,
             transcription_text,
-            title=youtube_title
+            title=youtube_title,
+            segments=json.dumps(segments) if segments else None
         )
 
-        update_job(job_id, "completed",
-                   transcript=transcription_text, db=db)  # Pass db
+        update_job(job_id, "completed", transcript=transcription_text, db=db)
         print(f"✅ YouTube transcription completed for '{youtube_title}'")
 
     except Exception as e:
-        update_job(job_id, "failed", db=db)  # Pass db
+        update_job(job_id, "failed", db=db)
         print(f"❌ Error during YouTube transcription: {e}")
 
 

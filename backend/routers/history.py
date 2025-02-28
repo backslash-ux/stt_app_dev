@@ -28,11 +28,10 @@ def get_my_history(
     history_records = (
         db.query(TranscriptionHistory)
         .filter(TranscriptionHistory.user_id == current_user.id)
-        .order_by(TranscriptionHistory.created_at.desc())  # Sort by latest
+        .order_by(TranscriptionHistory.created_at.desc())
         .all()
     )
 
-    # Return an empty list if no history is found instead of raising an error
     if not history_records:
         return []
 
@@ -43,6 +42,7 @@ def get_my_history(
             "source": record.source,
             "video_url": record.video_url,
             "transcript": record.transcript,
+            "segments": record.segments,  # <-- Add this line
             "created_at": record.created_at
         }
         for record in history_records

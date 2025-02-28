@@ -9,10 +9,12 @@ class TranscriptionHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    source = Column(String, nullable=False, default="YouTube")  # Default added
+    source = Column(String, nullable=False, default="YouTube")
     video_url = Column(Text)
-    title = Column(String, nullable=True)  # ✅ Added title field
+    title = Column(String, nullable=True)
     transcript = Column(Text, nullable=False)
+    # NEW: Stores segmentation JSON data
+    segments = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
 
     # Relationships
