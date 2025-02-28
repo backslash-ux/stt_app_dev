@@ -1,7 +1,7 @@
 // src/components/TranscriptionModal.js
 "use client";
 
-import { useState, useEffect } from "react"; // Added useEffect
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { useJobs } from "../hooks/useJobs";
@@ -22,7 +22,8 @@ export default function TranscriptionModal({
 }) {
     if (!isOpen || !transcription) return null;
 
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
+    const apiBaseUrl =
+        process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
     const audioSrc = transcription.video_url.startsWith("http")
         ? transcription.video_url
         : `${apiBaseUrl}${transcription.video_url}`;
@@ -31,7 +32,7 @@ export default function TranscriptionModal({
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [generatedContent, setGeneratedContent] = useState("");
-    const [job, setJob] = useState(null); // Added job state
+    const [job, setJob] = useState(null);
     const [selectedOptions, setSelectedOptions] = useState({
         "Gaya Bahasa": "Netral",
         "Kepadatan Informasi": "Ringkas",
@@ -64,7 +65,10 @@ export default function TranscriptionModal({
     };
 
     const handleOptionChange = (e) => {
-        setSelectedOptions({ ...selectedOptions, [e.target.name]: e.target.value });
+        setSelectedOptions({
+            ...selectedOptions,
+            [e.target.name]: e.target.value,
+        });
     };
 
     const handleGenerateContent = async () => {
@@ -72,7 +76,10 @@ export default function TranscriptionModal({
         setGeneratedContent("");
         setStep(3);
 
-        const combinedConfig = { ...selectedOptions, "Catatan Tambahan": additionalNotes };
+        const combinedConfig = {
+            ...selectedOptions,
+            "Catatan Tambahan": additionalNotes,
+        };
         const jobId = uuidv4();
         const newJob = {
             job_id: jobId,
@@ -80,12 +87,13 @@ export default function TranscriptionModal({
             type: "content-generation",
             title: `Content: ${transcription.title || "Untitled"}`,
         };
-        setJob(newJob); // Set the job state
+        setJob(newJob);
         addJob(newJob);
 
         try {
             updateJobStatus({ ...newJob, status: "processing" });
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
+            const API_BASE_URL =
+                process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3000";
             await axios.post(
                 `${API_BASE_URL}/generate/`,
                 {
@@ -105,7 +113,7 @@ export default function TranscriptionModal({
                 },
                 { withCredentials: true }
             );
-            // Since this is a background task, polling will handle the completion
+            // The background task will be polled below
         } catch (error) {
             console.error("Error starting content generation:", error);
             updateJobStatus({ ...newJob, status: "failed" });
@@ -176,6 +184,7 @@ export default function TranscriptionModal({
         }
     };
 
+    // Parse time-coded segments (if any)
     let segments = [];
     if (transcription.segments) {
         try {
@@ -185,7 +194,12 @@ export default function TranscriptionModal({
                 segments = [];
             }
         } catch (err) {
-            console.error("Error parsing transcription.segments:", err, "Raw data:", transcription.segments);
+            console.error(
+                "Error parsing transcription.segments:",
+                err,
+                "Raw data:",
+                transcription.segments
+            );
             segments = [];
         }
     }
@@ -194,19 +208,28 @@ export default function TranscriptionModal({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4">
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl w-full h-[80vh] flex flex-col overflow-y-auto">
                 <div
-                    className={`flex flex-grow transition-all duration-300 grid ${step === 1 ? "grid-cols-1" : step === 2 ? "grid-cols-2" : "grid-cols-3"
+                    className={`flex flex-grow transition-all duration-300 grid ${step === 1
+                            ? "grid-cols-1"
+                            : step === 2
+                                ? "grid-cols-2"
+                                : "grid-cols-3"
                         } gap-4 overflow-hidden`}
                 >
-                    {/* Left column: Transcript and segments */}
+                    {/* Left column: Transcript (non-time-coded) and audio/video */}
                     <div className="p-4 overflow-y-auto">
                         <h2 className="text-2xl font-bold">
                             {transcription.title || "Transcription Details"}
                         </h2>
-                        <p className="text-sm text-gray-600">Source: {transcription.source}</p>
+                        <p className="text-sm text-gray-600">
+                            Source: {transcription.source}
+                        </p>
                         {transcription.source === "YouTube" ? (
                             <iframe
                                 className="aspect-video w-full h-auto my-2"
-                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get("v")}`}
+                                src={`https://www.youtube.com/embed/${new URL(transcription.video_url).searchParams.get(
+                                    "v"
+                                )
+                                    }`}
                                 allowFullScreen
                             ></iframe>
                         ) : (
@@ -215,7 +238,12 @@ export default function TranscriptionModal({
                                 Your browser does not support the audio element.
                             </audio>
                         )}
+
+                        {/* Non-time-coded transcript */}
                         <div>
+                            <h3 className="text-lg font-semibold mb-2">
+                                Raw Transcript
+                            </h3>
                             <p className="text-gray-800 whitespace-pre-wrap">
                                 {transcription.transcript}
                             </p>
@@ -227,6 +255,7 @@ export default function TranscriptionModal({
                             </button>
                         </div>
 
+                        {/* Step 1 button */}
                         {step === 1 && (
                             <button
                                 onClick={() => setStep(2)}
@@ -236,16 +265,20 @@ export default function TranscriptionModal({
                             </button>
                         )}
 
+                        {/* Time-coded/segmented transcript (if any) */}
                         {segments.length > 0 && (
                             <div className="mt-6">
-                                <h3 className="text-lg font-semibold mb-2">Segmented Transcript</h3>
+                                <h3 className="text-lg font-semibold mb-2">
+                                    Segmented Transcript
+                                </h3>
                                 <ul className="space-y-2 text-sm border rounded-lg p-2 bg-gray-50">
                                     {segments.map((seg, idx) => (
                                         <li
                                             key={idx}
                                             className="text-gray-700 hover:bg-gray-100 p-1 rounded cursor-pointer"
                                             onClick={() => {
-                                                const audio = document.querySelector("audio");
+                                                const audio =
+                                                    document.querySelector("audio");
                                                 if (audio && seg.start !== undefined) {
                                                     audio.currentTime = seg.start;
                                                     audio.play();
@@ -266,10 +299,14 @@ export default function TranscriptionModal({
                     {/* Middle column: Generation configuration */}
                     {step > 1 && (
                         <div className="p-4 overflow-y-auto">
-                            <h3 className="text-xl font-bold mb-2">Generate Content</h3>
+                            <h3 className="text-xl font-bold mb-2">
+                                Generate Content
+                            </h3>
                             {Object.keys(selectedOptions).map((key) => (
                                 <div key={key} className="mb-2">
-                                    <label className="block font-semibold">{key}:</label>
+                                    <label className="block font-semibold">
+                                        {key}:
+                                    </label>
                                     <select
                                         name={key}
                                         value={selectedOptions[key]}
@@ -277,7 +314,10 @@ export default function TranscriptionModal({
                                         className="border rounded p-2 w-full bg-white"
                                     >
                                         {dropdownOptions[key].map((opt) => (
-                                            <option key={`${key}-${opt}`} value={opt}>
+                                            <option
+                                                key={`${key}-${opt}`}
+                                                value={opt}
+                                            >
                                                 {opt}
                                             </option>
                                         ))}
@@ -285,10 +325,14 @@ export default function TranscriptionModal({
                                 </div>
                             ))}
                             <div className="mb-2">
-                                <label className="block font-semibold">Catatan Tambahan:</label>
+                                <label className="block font-semibold">
+                                    Catatan Tambahan:
+                                </label>
                                 <textarea
                                     value={additionalNotes}
-                                    onChange={(e) => setAdditionalNotes(e.target.value)}
+                                    onChange={(e) =>
+                                        setAdditionalNotes(e.target.value)
+                                    }
                                     className="border rounded p-2 w-full bg-white"
                                     placeholder="Masukkan catatan tambahan (opsional)"
                                     rows={3}
@@ -307,12 +351,17 @@ export default function TranscriptionModal({
                     {/* Right column: Generated content */}
                     {step === 3 && (
                         <div className="p-4 overflow-y-auto">
-                            <h3 className="text-xl font-bold">Generated Content</h3>
+                            <h3 className="text-xl font-bold">
+                                Generated Content
+                            </h3>
                             <div className="border p-4 rounded-lg bg-gray-50">
                                 <div
                                     className="generated-content"
                                     dangerouslySetInnerHTML={{
-                                        __html: DOMPurify.sanitize(generatedContent || "Content generation in progress..."),
+                                        __html: DOMPurify.sanitize(
+                                            generatedContent ||
+                                            "Content generation in progress..."
+                                        ),
                                     }}
                                 />
                             </div>
@@ -320,6 +369,7 @@ export default function TranscriptionModal({
                     )}
                 </div>
 
+                {/* Bottom controls */}
                 <div className="flex justify-between mt-4">
                     {step > 1 && (
                         <button
